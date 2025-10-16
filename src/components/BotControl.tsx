@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { API_CONFIG } from "@/lib/api-config";
 
 interface BotStats {
   messagesReceived: number;
@@ -26,7 +27,7 @@ const BotControl = ({ isConnected }: BotControlProps) => {
   // Obtener estadísticas
   const fetchStats = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/whatsapp/stats');
+      const response = await fetch(`${API_CONFIG.WHATSAPP_API_URL}/api/whatsapp/stats`);
       if (response.ok) {
         const data = await response.json();
         setStats(data.stats);
@@ -41,7 +42,7 @@ const BotControl = ({ isConnected }: BotControlProps) => {
   const toggleAutoBot = async (enabled: boolean) => {
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:3001/api/whatsapp/toggle-autobot', {
+      const response = await fetch(`${API_CONFIG.WHATSAPP_API_URL}/api/whatsapp/toggle-autobot`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -68,7 +69,7 @@ const BotControl = ({ isConnected }: BotControlProps) => {
   const resetStats = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:3001/api/whatsapp/reset-stats', {
+      const response = await fetch(`${API_CONFIG.WHATSAPP_API_URL}/api/whatsapp/reset-stats`, {
         method: 'POST',
       });
 

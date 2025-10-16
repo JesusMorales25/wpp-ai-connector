@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { API_CONFIG } from '@/lib/api-config';
 
 export interface WhatsAppStatus {
   status: 'disconnected' | 'qr_received' | 'authenticating' | 'connected';
@@ -13,7 +14,7 @@ export interface WhatsAppInfo {
   phone: string;
 }
 
-const API_BASE_URL = 'http://localhost:3001/api/whatsapp';
+const API_BASE_URL = `${API_CONFIG.WHATSAPP_API_URL}/api/whatsapp`;
 
 export const useWhatsApp = () => {
   const [status, setStatus] = useState<WhatsAppStatus>({

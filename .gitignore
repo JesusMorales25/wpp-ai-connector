@@ -22,3 +22,17 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# WhatsApp Web.js cache y datos de sesión
+.wwebjs_cache/
+session_data/
+server/session_data/
+server/.wwebjs_cache/
+
+# Archivos de sistema de Windows
+Thumbs.db
+Desktop.ini
+
+# Archivos temporales
+*.tmp
+*.temp

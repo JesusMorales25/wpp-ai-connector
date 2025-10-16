@@ -12,6 +12,7 @@ interface Message {
   mensaje: string;
   timestamp: Date;
   status: "sending" | "sent" | "error";
+  messageId?: string;
 }
 
 interface ChatInterfaceProps {
@@ -41,7 +42,7 @@ const ChatInterface = ({ isConnected }: ChatInterfaceProps) => {
 
   const sendMessage = async () => {
     if (!isConnected) {
-      toast.error("Debes conectarte primero con el código QR");
+      toast.error("Debes autenticar tu WhatsApp con el código QR primero");
       return;
     }
 
@@ -60,8 +61,9 @@ const ChatInterface = ({ isConnected }: ChatInterfaceProps) => {
       setMessages((prev) => [...prev, newMessage]);
       setIsSending(true);
 
+      // Enviar mensaje manual por WhatsApp usando el servidor local
       const response = await fetch(
-        "https://ianeg-bot-backend-up.onrender.com/api/chat/send",
+        "http://localhost:3001/api/whatsapp/send",
         {
           method: "POST",
           headers: {
@@ -75,17 +77,27 @@ const ChatInterface = ({ isConnected }: ChatInterfaceProps) => {
       );
 
       if (!response.ok) {
-        throw new Error(`Error del servidor: ${response.status}`);
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Error del servidor: ${response.status}`);
       }
+
+      const result = await response.json();
 
       setMessages((prev) =>
         prev.map((msg) =>
-          msg.id === newMessage.id ? { ...msg, status: "sent" } : msg
+          msg.id === newMessage.id 
+            ? { 
+                ...msg, 
+                status: "sent",
+                messageId: result.messageId
+              } 
+            : msg
         )
       );
 
-      toast.success("Mensaje enviado correctamente");
+      toast.success("Mensaje enviado por WhatsApp correctamente");
       setMensaje("");
+
     } catch (error) {
       if (error instanceof z.ZodError) {
         const firstError = error.errors[0];
@@ -117,12 +129,17 @@ const ChatInterface = ({ isConnected }: ChatInterfaceProps) => {
         <div className="flex items-center gap-3">
           <MessageSquare className="w-6 h-6 text-primary" />
           <h2 className="text-xl font-bold text-foreground">
-            Enviar Mensaje WhatsApp
+            Envío Manual (Opcional)
           </h2>
         </div>
         {!isConnected && (
           <p className="text-sm text-destructive mt-2">
-            ⚠️ Escanea el código QR primero para conectarte
+            ⚠️ Escanea el código QR primero para autenticar tu WhatsApp
+          </p>
+        )}
+        {isConnected && (
+          <p className="text-sm text-green-600 mt-2">
+            � Envía mensajes directos por WhatsApp desde tu cuenta autenticada. Ideal para comunicación manual cuando el bot está desactivado.
           </p>
         )}
       </div>

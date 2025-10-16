@@ -1,20 +1,20 @@
-// Configuración de API URLs según el entorno
+// Configuración de API URLs usando variables de entorno
 const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
 export const API_CONFIG = {
   // Backend WhatsApp (Railway en producción, localhost en desarrollo)
   WHATSAPP_API_URL: isDevelopment 
     ? 'http://localhost:3001'
-    : 'https://wpp-ai-connector-backend-production.up.railway.app', // Cambia por tu URL de Railway
+    : `https://${import.meta.env.VITE_RAILWAY_URL || 'wpp-ai-connector-production.up.railway.app'}`,
   
-  // Backend IA (siempre el mismo)
-  AI_BOT_URL: 'https://ianeg-bot-backend-up.onrender.com/api/chat/send',
+  // Backend IA (configurable por variable de entorno)
+  AI_BOT_URL: import.meta.env.VITE_AI_BOT_URL || 'https://ianeg-bot-backend-up.onrender.com/api/chat/send',
   
-  // Timeout para requests
-  REQUEST_TIMEOUT: 10000,
+  // Timeout para requests (configurable)
+  REQUEST_TIMEOUT: parseInt(import.meta.env.VITE_REQUEST_TIMEOUT || '10000'),
   
-  // Intervalo de polling para estado
-  POLLING_INTERVAL: 5000
+  // Intervalo de polling para estado (configurable)
+  POLLING_INTERVAL: parseInt(import.meta.env.VITE_POLLING_INTERVAL || '5000')
 };
 
 // Función helper para construir URLs de la API de WhatsApp

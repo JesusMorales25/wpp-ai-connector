@@ -1,0 +1,20 @@
+# Ignorar archivos innecesarios en Vercel
+server/
+.wwebjs_cache/
+session_data/
+node_modules/
+.git/
+*.log
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Solo deployar el frontend
+!dist/
+!src/
+!public/
+!package.json
+!vite.config.ts
+!tsconfig.json
+!index.html

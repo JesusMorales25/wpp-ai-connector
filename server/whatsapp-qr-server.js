@@ -35,10 +35,14 @@ let botStats = {
 const cleanupClient = async () => {
     if (whatsappClient) {
         try {
-            await whatsappClient.destroy();
-            whatsappClient = null;
+            // Verificar si el cliente está inicializado antes de destruir
+            if (whatsappClient.pupPage) {
+                await whatsappClient.destroy();
+            }
         } catch (error) {
             console.error('Error cleaning up client:', error);
+        } finally {
+            whatsappClient = null;
         }
     }
     isClientReady = false;
@@ -62,37 +66,51 @@ const initializeWhatsAppClient = async () => {
 
         console.log('Initializing WhatsApp client for QR display...');
         
+        // Configuración específica para Railway/Docker
+        const puppeteerConfig = {
+            headless: true,
+            timeout: 120000, // Aumentar timeout
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--disable-gpu',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-features=VizDisplayCompositor,TranslateUI',
+                '--disable-web-security',
+                '--disable-extensions',
+                '--disable-default-apps',
+                '--mute-audio',
+                '--disable-client-side-phishing-detection',
+                '--disable-sync',
+                '--disable-background-networking',
+                '--disable-component-update',
+                '--disable-domain-reliability',
+                '--disable-features=AudioServiceOutOfProcess',
+                '--run-all-compositor-stages-before-draw',
+                '--disable-ipc-flooding-protection',
+                '--memory-pressure-off',
+                '--max_old_space_size=4096'
+            ],
+            handleSIGINT: false,
+            handleSIGTERM: false,
+            handleSIGHUP: false
+        };
+
+        // En Railway/Docker, usar Chrome del sistema
+        if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+            puppeteerConfig.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+        }
+
         whatsappClient = new Client({
             authStrategy: new LocalAuth({
                 dataPath: './session_data'
             }),
-            puppeteer: {
-                headless: true,
-                executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-                args: [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-accelerated-2d-canvas',
-                    '--no-first-run',
-                    '--no-zygote',
-                    '--single-process',
-                    '--disable-gpu',
-                    '--disable-background-timer-throttling',
-                    '--disable-backgrounding-occluded-windows',
-                    '--disable-features=TranslateUI',
-                    '--disable-web-security',
-                    '--disable-extensions',
-                    '--disable-default-apps',
-                    '--mute-audio',
-                    '--no-first-run',
-                    '--disable-client-side-phishing-detection'
-                ],
-                timeout: 60000,
-                handleSIGINT: false,
-                handleSIGTERM: false,
-                handleSIGHUP: false
-            }
+            puppeteer: puppeteerConfig
         });
 
         // Evento: QR recibido

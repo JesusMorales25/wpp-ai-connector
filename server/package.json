@@ -1,11 +1,14 @@
 {
-  "name": "whatsapp-server",
+  "name": "wpp-ai-connector-backend",
   "version": "1.0.0",
-  "description": "WhatsApp Web.js Server",
-  "main": "whatsapp-server.js",
+  "description": "WhatsApp AI Bot Backend with automatic message handling",
+  "main": "whatsapp-qr-server.js",
   "scripts": {
-    "start": "node whatsapp-server.js",
-    "dev": "nodemon whatsapp-server.js"
+    "start": "node whatsapp-qr-server.js",
+    "dev": "nodemon whatsapp-qr-server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "dependencies": {
     "whatsapp-web.js": "^1.25.0",
@@ -15,5 +18,8 @@
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
-  }
+  },
+  "keywords": ["whatsapp", "bot", "ai", "automation", "web.js"],
+  "author": "JesusMorales25",
+  "license": "MIT"
 }

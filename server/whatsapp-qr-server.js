@@ -7,6 +7,9 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Configuración específica para Railway
+const isProduction = process.env.NODE_ENV === 'production';
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -537,7 +540,7 @@ app.use((error, req, res, next) => {
 });
 
 // Iniciar servidor
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`🤖 WhatsApp Auto-Bot Service running on port ${PORT}`);
     console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
     console.log(`📱 Status endpoint: http://localhost:${PORT}/api/whatsapp/status`);
@@ -550,6 +553,10 @@ app.listen(PORT, () => {
     console.log('');
     console.log(`🤖 Bot automático: ${autoBotEnabled ? 'ACTIVADO ✅' : 'DESACTIVADO ❌'}`);
     console.log(`🎯 Bot IA endpoint: https://ianeg-bot-backend-up.onrender.com/api/chat/send`);
+    
+    if (isProduction) {
+        console.log('🚂 Running on Railway - Check logs for QR code');
+    }
 });
 
 // Manejar cierre graceful

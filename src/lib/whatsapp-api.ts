@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:3001/api/whatsapp';
+import { getWhatsAppApiUrl, fetchWithTimeout } from './api-config';
 
 export interface ApiResponse<T = unknown> {
   success: boolean;
@@ -20,7 +20,9 @@ export class WhatsAppApiService {
     options: RequestInit = {}
   ): Promise<T> {
     try {
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      const url = getWhatsAppApiUrl(`/api/whatsapp${endpoint}`);
+      
+      const response = await fetchWithTimeout(url, {
         headers: {
           'Content-Type': 'application/json',
           ...options.headers,
@@ -72,5 +74,16 @@ export class WhatsAppApiService {
 
   static async getClientInfo() {
     return this.request<ApiResponse>('/info');
+  }
+
+  static async getStats() {
+    return this.request<ApiResponse>('/stats');
+  }
+
+  static async toggleAutoBot(enabled: boolean) {
+    return this.request<ApiResponse>('/toggle-autobot', {
+      method: 'POST',
+      body: JSON.stringify({ enabled }),
+    });
   }
 }

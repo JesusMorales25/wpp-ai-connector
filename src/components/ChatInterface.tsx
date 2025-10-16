@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { z } from "zod";
+import { getWhatsAppApiUrl, fetchWithTimeout } from "@/lib/api-config";
 
 interface Message {
   id: string;
@@ -62,8 +63,8 @@ const ChatInterface = ({ isConnected }: ChatInterfaceProps) => {
       setIsSending(true);
 
       // Enviar mensaje manual por WhatsApp usando el servidor local
-      const response = await fetch(
-        "http://localhost:3001/api/whatsapp/send",
+      const response = await fetchWithTimeout(
+        getWhatsAppApiUrl("/api/whatsapp/send"),
         {
           method: "POST",
           headers: {

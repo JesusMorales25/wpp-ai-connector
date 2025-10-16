@@ -68,6 +68,7 @@ const initializeWhatsAppClient = async () => {
             }),
             puppeteer: {
                 headless: true,
+                executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
                 args: [
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
@@ -81,7 +82,11 @@ const initializeWhatsAppClient = async () => {
                     '--disable-backgrounding-occluded-windows',
                     '--disable-features=TranslateUI',
                     '--disable-web-security',
-                    '--disable-extensions'
+                    '--disable-extensions',
+                    '--disable-default-apps',
+                    '--mute-audio',
+                    '--no-first-run',
+                    '--disable-client-side-phishing-detection'
                 ],
                 timeout: 60000,
                 handleSIGINT: false,

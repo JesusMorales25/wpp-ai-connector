@@ -29,9 +29,26 @@ let botStats = {
     messagesReceived: 0,
     messagesSentToAI: 0,
     errors: 0,
-    spamBlocked: 0, // Nueva estadística para spam bloqueado
+    spamBlocked: 0,
+    rateLimited: 0,        // Mensajes bloqueados por rate limiting
+    mediaIgnored: 0,       // Mensajes multimedia ignorados
+    systemIgnored: 0,      // Mensajes del sistema ignorados
+    uniqueUsers: new Set(), // Usuarios únicos que han enviado mensajes
     startTime: new Date()
 };
+
+// NUEVAS CONFIGURACIONES DE SEGURIDAD
+const BOT_CONFIG = {
+    MAX_MESSAGE_LENGTH: 1000,    // Máximo 1000 caracteres por mensaje
+    MAX_MESSAGES_PER_MINUTE: 10, // Máximo 10 mensajes por minuto por usuario
+    COOLDOWN_MINUTES: 1,         // 1 minuto de cooldown entre mensajes del mismo usuario
+    BLOCKED_WORDS: ['spam', 'publicidad', 'oferta', 'promocion', 'descuento'],
+    RATE_LIMIT_WINDOW: 60000     // 1 minuto en milisegundos
+};
+
+// Rate limiting por usuario
+let userLastMessage = new Map(); // userId -> timestamp
+let userMessageCount = new Map(); // userId -> {count, windowStart}
 
 // Función para limpiar recursos
 const cleanupClient = async () => {
@@ -223,6 +240,115 @@ const initializeWhatsAppClient = async () => {
                     return;
                 }
 
+                // NUEVO: Filtros adicionales importantes
+                
+                // Ignorar mensajes del sistema
+                if (message.type === 'system') {
+                    console.log('⚙️ Mensaje del sistema ignorado');
+                    botStats.systemIgnored++;
+                    return;
+                }
+
+                // Ignorar reacciones (emojis como respuesta)
+                if (message.type === 'reaction') {
+                    console.log('😀 Reacción ignorada');
+                    botStats.systemIgnored++;
+                    return;
+                }
+
+                // Ignorar mensajes revocados/eliminados
+                if (message.type === 'revoked') {
+                    console.log('🗑️ Mensaje revocado ignorado');
+                    botStats.systemIgnored++;
+                    return;
+                }
+
+                // Ignorar notificaciones de llamadas
+                if (message.type === 'call_log') {
+                    console.log('📞 Notificación de llamada ignorada');
+                    botStats.systemIgnored++;
+                    return;
+                }
+
+                // Ignorar mensajes multimedia sin texto (solo procesar si tienen caption)
+                if ((message.type === 'image' || message.type === 'video' || message.type === 'audio' || 
+                     message.type === 'document' || message.type === 'sticker') && !message.body) {
+                    console.log('🖼️ Multimedia sin texto ignorado - Tipo:', message.type);
+                    botStats.mediaIgnored++;
+                    return;
+                }
+
+                // Ignorar ubicaciones compartidas
+                if (message.type === 'location') {
+                    console.log('📍 Ubicación compartida ignorada');
+                    botStats.mediaIgnored++;
+                    return;
+                }
+
+                // Ignorar contactos compartidos
+                if (message.type === 'vcard') {
+                    console.log('👤 Contacto compartido ignorado');
+                    botStats.mediaIgnored++;
+                    return;
+                }
+
+                // Filtro anti-loop: Ignorar mensajes que parecen respuestas de bots
+                const botKeywords = ['bot', 'automatico', 'inteligencia artificial', 'asistente virtual'];
+                if (botKeywords.some(keyword => message.body?.toLowerCase().includes(keyword))) {
+                    console.log('🤖 Posible mensaje de bot ignorado para evitar loop');
+                    return;
+                }
+
+                // VALIDACIONES DE SEGURIDAD Y RATE LIMITING
+                
+                const userId = message.from;
+                const now = Date.now();
+                
+                // 1. Validar longitud del mensaje
+                if (message.body && message.body.length > BOT_CONFIG.MAX_MESSAGE_LENGTH) {
+                    console.log('📏 Mensaje demasiado largo ignorado - Longitud:', message.body.length);
+                    await message.reply('⚠️ Tu mensaje es demasiado largo. Por favor, envía mensajes más cortos.');
+                    return;
+                }
+
+                // 2. Rate limiting por usuario
+                const lastMessage = userLastMessage.get(userId);
+                if (lastMessage && (now - lastMessage) < (BOT_CONFIG.COOLDOWN_MINUTES * 60000)) {
+                    console.log('⏱️ Usuario en cooldown ignorado:', userId);
+                    botStats.rateLimited++;
+                    return;
+                }
+
+                // 3. Contador de mensajes por minuto
+                let userStats = userMessageCount.get(userId) || {count: 0, windowStart: now};
+                
+                // Resetear ventana si ha pasado más de 1 minuto
+                if (now - userStats.windowStart > BOT_CONFIG.RATE_LIMIT_WINDOW) {
+                    userStats = {count: 0, windowStart: now};
+                }
+                
+                userStats.count++;
+                userMessageCount.set(userId, userStats);
+                
+                // Verificar límite de mensajes por minuto
+                if (userStats.count > BOT_CONFIG.MAX_MESSAGES_PER_MINUTE) {
+                    console.log('🚫 Usuario excedió límite de mensajes por minuto:', userId);
+                    await message.reply('⚠️ Has enviado demasiados mensajes. Espera un momento antes de continuar.');
+                    botStats.rateLimited++;
+                    return;
+                }
+
+                // 4. Filtro de palabras prohibidas/spam
+                if (message.body && BOT_CONFIG.BLOCKED_WORDS.some(word => 
+                    message.body.toLowerCase().includes(word.toLowerCase()))) {
+                    console.log('🚫 Mensaje con palabra prohibida detectado');
+                    botStats.spamBlocked++;
+                    return;
+                }
+
+                // Actualizar timestamp del último mensaje del usuario
+                userLastMessage.set(userId, now);
+
                 // Evitar procesar el mismo mensaje múltiples veces
                 if (processedMessages.has(message.id._serialized)) {
                     console.log('🔄 Mensaje ya procesado, ignorando');
@@ -232,6 +358,7 @@ const initializeWhatsAppClient = async () => {
 
                 // Actualizar estadísticas - SOLO para mensajes nuevos
                 botStats.messagesReceived++;
+                botStats.uniqueUsers.add(userId); // Rastrear usuarios únicos
 
                 console.log('📨 NUEVO mensaje recibido:');
                 console.log('De:', message.from);
@@ -374,14 +501,18 @@ app.get('/api/whatsapp/stats', (req, res) => {
     const uptimeHours = Math.floor(uptime / (1000 * 60 * 60));
     const uptimeMinutes = Math.floor((uptime % (1000 * 60 * 60)) / (1000 * 60));
     
+    // Convertir Set a número para enviar en JSON
+    const statsToSend = {
+        ...botStats,
+        uniqueUsers: botStats.uniqueUsers.size, // Convertir Set a número
+        uptime: `${uptimeHours}h ${uptimeMinutes}m`,
+        uptimeMs: uptime,
+        messagesPerHour: uptimeHours > 0 ? Math.round(botStats.messagesReceived / uptimeHours) : 0
+    };
+    
     res.json({
         success: true,
-        stats: {
-            ...botStats,
-            uptime: `${uptimeHours}h ${uptimeMinutes}m`,
-            uptimeMs: uptime,
-            messagesPerHour: uptimeHours > 0 ? Math.round(botStats.messagesReceived / uptimeHours) : 0
-        },
+        stats: statsToSend,
         autoBotEnabled: autoBotEnabled,
         status: connectionStatus
     });
@@ -394,9 +525,15 @@ app.post('/api/whatsapp/reset-stats', (req, res) => {
         messagesSentToAI: 0,
         errors: 0,
         spamBlocked: 0,
+        rateLimited: 0,
+        mediaIgnored: 0,
+        systemIgnored: 0,
+        uniqueUsers: new Set(),
         startTime: new Date()
     };
     processedMessages.clear();
+    userLastMessage.clear();
+    userMessageCount.clear();
     // Reiniciar también el timestamp del bot si está conectado
     if (isClientReady) {
         botReadyTime = new Date();
@@ -406,7 +543,10 @@ app.post('/api/whatsapp/reset-stats', (req, res) => {
     res.json({
         success: true,
         message: 'Estadísticas reiniciadas',
-        stats: botStats
+        stats: {
+            ...botStats,
+            uniqueUsers: botStats.uniqueUsers.size
+        }
     });
 });
 

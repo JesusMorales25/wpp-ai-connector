@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bot, Activity, MessageSquare, AlertTriangle, BarChart3, RotateCcw } from "lucide-react";
+import { Bot, Activity, MessageSquare, AlertTriangle, BarChart3, RotateCcw, Shield } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -10,6 +10,7 @@ interface BotStats {
   messagesReceived: number;
   messagesSentToAI: number;
   errors: number;
+  spamBlocked: number;
   startTime: string;
   uptime: string;
   messagesPerHour: number;
@@ -155,7 +156,7 @@ const BotControl = ({ isConnected }: BotControlProps) => {
               </Button>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                 <div className="flex items-center gap-2 text-green-700">
                   <MessageSquare className="w-4 h-4" />
@@ -186,6 +187,14 @@ const BotControl = ({ isConnected }: BotControlProps) => {
                   <span className="text-sm font-medium">Errores</span>
                 </div>
                 <p className="text-2xl font-bold text-orange-900">{stats.errors}</p>
+              </div>
+
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-red-700">
+                  <Shield className="w-4 h-4" />
+                  <span className="text-sm font-medium">Spam bloqueado</span>
+                </div>
+                <p className="text-2xl font-bold text-red-900">{stats.spamBlocked}</p>
               </div>
             </div>
 

@@ -20,6 +20,7 @@ let qrCodeData = null;
 let isClientReady = false;
 let connectionStatus = 'disconnected'; // 'disconnected', 'qr_received', 'authenticating', 'connected'
 let initializationInProgress = false;
+let botReadyTime = null; // Timestamp de cuando el bot estuvo listo para contar mensajes
 
 // Configuración del bot automático
 let autoBotEnabled = true; // Por defecto activado
@@ -28,6 +29,7 @@ let botStats = {
     messagesReceived: 0,
     messagesSentToAI: 0,
     errors: 0,
+    spamBlocked: 0, // Nueva estadística para spam bloqueado
     startTime: new Date()
 };
 
@@ -49,6 +51,9 @@ const cleanupClient = async () => {
     connectionStatus = 'disconnected';
     qrCodeData = null;
     initializationInProgress = false;
+    botReadyTime = null; // Limpiar timestamp del bot
+    // Limpiar también los mensajes procesados al reinicializar
+    processedMessages.clear();
 };
 
 // Configurar cliente de WhatsApp - Solo para mostrar QR y mantener conexión
@@ -131,6 +136,9 @@ const initializeWhatsAppClient = async () => {
             connectionStatus = 'connected';
             qrCodeData = null;
             initializationInProgress = false;
+            // Marcar el momento cuando el bot está listo para procesar mensajes nuevos
+            botReadyTime = new Date();
+            console.log('🤖 Bot listo para procesar mensajes nuevos desde:', botReadyTime.toISOString());
         });
 
         // Evento: Cliente autenticado
@@ -170,26 +178,66 @@ const initializeWhatsAppClient = async () => {
                     return;
                 }
 
-                // Ignorar mensajes de grupos (opcional)
+                // Ignorar mensajes de grupos
                 if (message.from.includes('@g.us')) {
                     console.log('👥 Mensaje de grupo ignorado:', message.from);
                     return;
                 }
 
+                // NUEVO: Ignorar mensajes de estado/broadcast (SPAM)
+                if (message.from.includes('@broadcast') || 
+                    message.from.includes('status@') || 
+                    message.from.startsWith('status@broadcast')) {
+                    console.log('📢 Mensaje de estado/broadcast ignorado (SPAM):', message.from);
+                    botStats.spamBlocked++;
+                    return;
+                }
+
+                // Ignorar listas de difusión y newsletters
+                if (message.from.includes('@newsletter') || 
+                    message.from.includes('@list') ||
+                    message.from.includes('broadcast')) {
+                    console.log('📰 Lista de difusión/newsletter ignorada:', message.from);
+                    botStats.spamBlocked++;
+                    return;
+                }
+
+                // Filtro adicional para detectar patrones de spam comunes
+                const spamPatterns = [
+                    'status@broadcast',
+                    '@status',
+                    'broadcast@',
+                    'newsletter@',
+                    'updates@'
+                ];
+                
+                if (spamPatterns.some(pattern => message.from.includes(pattern))) {
+                    console.log('🚫 Patrón de SPAM detectado:', message.from);
+                    botStats.spamBlocked++;
+                    return;
+                }
+
+                // NUEVO: Solo procesar mensajes que llegaron DESPUÉS de que el bot estuvo listo
+                if (!botReadyTime || message.timestamp * 1000 < botReadyTime.getTime()) {
+                    console.log('📜 Mensaje histórico ignorado - Timestamp:', new Date(message.timestamp * 1000).toISOString());
+                    return;
+                }
+
                 // Evitar procesar el mismo mensaje múltiples veces
                 if (processedMessages.has(message.id._serialized)) {
-                    console.log('� Mensaje ya procesado, ignorando');
+                    console.log('🔄 Mensaje ya procesado, ignorando');
                     return;
                 }
                 processedMessages.add(message.id._serialized);
 
-                // Actualizar estadísticas
+                // Actualizar estadísticas - SOLO para mensajes nuevos
                 botStats.messagesReceived++;
 
-                console.log('�📨 Nuevo mensaje recibido:');
+                console.log('📨 NUEVO mensaje recibido:');
                 console.log('De:', message.from);
                 console.log('Mensaje:', message.body);
                 console.log('ID:', message.id._serialized);
+                console.log('Timestamp:', new Date(message.timestamp * 1000).toISOString());
 
                 // Extraer el número de teléfono (sin @c.us)
                 const phoneNumber = message.from.replace('@c.us', '');
@@ -345,14 +393,36 @@ app.post('/api/whatsapp/reset-stats', (req, res) => {
         messagesReceived: 0,
         messagesSentToAI: 0,
         errors: 0,
+        spamBlocked: 0,
         startTime: new Date()
     };
     processedMessages.clear();
+    // Reiniciar también el timestamp del bot si está conectado
+    if (isClientReady) {
+        botReadyTime = new Date();
+        console.log('🔄 Estadísticas reiniciadas - Bot listo desde:', botReadyTime.toISOString());
+    }
     
     res.json({
         success: true,
         message: 'Estadísticas reiniciadas',
         stats: botStats
+    });
+});
+
+// Endpoint de debugging para verificar el estado del bot
+app.get('/api/whatsapp/debug', (req, res) => {
+    res.json({
+        success: true,
+        debug: {
+            botReadyTime: botReadyTime ? botReadyTime.toISOString() : null,
+            processedMessagesCount: processedMessages.size,
+            isClientReady,
+            connectionStatus,
+            autoBotEnabled,
+            stats: botStats,
+            currentTime: new Date().toISOString()
+        }
     });
 });
 

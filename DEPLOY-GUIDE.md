@@ -1,20 +1,26 @@
 # 🚀 Guía de Despliegue - IA CRM
 
-Esta guía te ayudará a desplegar el sistema completo en la nube.
+Esta guía te ayudará a desplegar el sistema completo en la nube con el nuevo sistema de branding.
 
 ## 📋 Arquitectura de Despliegue
 
-- **Frontend (React)**: Vercel
+- **Frontend (React)**: Vercel ⭐ **RECOMENDADO**
 - **Backend WhatsApp**: Railway  
 - **Backend Principal**: Render (ya desplegado)
 
-## 🔧 Variables de Entorno
+## 🎨 Sistema de Branding Configurabile
 
-⚠️ **Importante**: Las variables de entorno se configuran directamente en los servidores (Vercel, Railway), NO en archivos locales.
+El proyecto ahora incluye un sistema de branding completamente configurabile via variables de entorno.
 
-### Para Vercel (Frontend)
-Configura estas variables en el dashboard de Vercel:
+### Variables de Branding (Frontend)
 ```bash
+# Personalización de marca
+VITE_APP_NAME=IA CRM
+VITE_APP_DESCRIPTION=Panel Corporativo
+VITE_COMPANY_NAME=IA CRM
+VITE_APP_LOGO_URL=/logo.png
+
+# APIs del sistema
 VITE_BACKEND_API_URL=https://tu-backend.onrender.com
 VITE_WHATSAPP_API_URL=https://tu-whatsapp.railway.app
 VITE_AI_BOT_URL=https://tu-backend.onrender.com/api/chat/send
@@ -23,31 +29,37 @@ VITE_REQUEST_TIMEOUT=30000
 VITE_POLLING_INTERVAL=15000
 ```
 
-### Para Railway (WhatsApp Server)
-Configura estas variables en el dashboard de Railway:
-```bash
-PORT=3001
-NODE_ENV=production
-ALLOWED_ORIGINS=https://tu-app.vercel.app,http://localhost:8080
-WHATSAPP_SESSION_PATH=/tmp/session_data
-BOT_API_KEY=tu-api-key-secreta
-FRONTEND_URL=https://tu-app.vercel.app
-```
+## 🚀 Despliegue Paso a Paso
 
-## 📱 Paso a Paso
+### 1. 📱 Frontend en Vercel (PRIORITARIO)
 
-### 1. Desplegar Frontend en Vercel
+**Repositorio actualizado y listo para deploy**
 
-1. Conecta tu repositorio GitHub a Vercel
-2. Selecciona la rama `main`
-3. Configura las variables de entorno en el dashboard
-4. Deploy automático
+1. **Conectar GitHub**:
+   - Ve a [vercel.com](https://vercel.com)
+   - Conecta con tu cuenta de GitHub
+   - Selecciona el repositorio `wpp-ai-connector`
 
-### 2. Desplegar WhatsApp Server en Railway
+2. **Configurar Variables de Entorno**:
+   ```bash
+   # En Vercel Dashboard → Settings → Environment Variables
+   VITE_APP_NAME=Mi Empresa CRM
+   VITE_APP_DESCRIPTION=Sistema de Gestión Empresarial
+   VITE_COMPANY_NAME=Mi Empresa
+   VITE_APP_LOGO_URL=https://mi-empresa.com/logo.png
+   
+   # URLs de APIs (configura según tus backends)
+   VITE_BACKEND_API_URL=https://wpp-ai-connector-backend.onrender.com
+   VITE_WHATSAPP_API_URL=https://tu-whatsapp.railway.app
+   VITE_AI_BOT_URL=https://wpp-ai-connector-backend.onrender.com/api/chat/send
+   VITE_BOT_API_KEY=tu-api-key-secreta
+   ```
 
-1. Conecta la carpeta `/server` a Railway
-2. Configura las variables de entorno en el dashboard
-3. Deploy automático desde la carpeta server
+3. **Deploy**:
+   - Vercel detectará automáticamente que es un proyecto Vite
+   - Build Command: `npm run build`
+   - Output Directory: `dist`
+   - ✅ **Deploy automático desde `main` branch**
 
 ### 3. Verificar URLs
 

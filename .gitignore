@@ -12,12 +12,32 @@ dist
 dist-ssr
 *.local
 
-# Variables de entorno
+# Cache y archivos temporales
+.wwebjs_cache/
+session_data/
+*.cache
+
+# Variables de entorno - IGNORAR TODOS LOS ARCHIVOS LOCALES
+.env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
-.env
+.env.*.local
+.env.production
+
+# Variables de entorno del servidor
+server/.env
+server/.env.local
+server/.env.development.local
+server/.env.test.local
+server/.env.production.local
+server/.env.*.local
+
+# Archivos de test temporales
+test-*.js
+test-*.mjs
+test-*.ts
 
 # Editor directories and files
 .vscode/*

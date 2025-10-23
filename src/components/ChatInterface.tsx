@@ -73,6 +73,8 @@ const ChatInterface = ({ isConnected }: ChatInterfaceProps) => {
           body: JSON.stringify({
             numero: validated.numero,
             mensaje: validated.mensaje,
+            isManual: true, // Marcador para envío manual
+            source: 'envio_manual' // Identificador del origen
           }),
         }
       );
@@ -126,40 +128,40 @@ const ChatInterface = ({ isConnected }: ChatInterfaceProps) => {
 
   return (
     <Card className="flex flex-col h-[600px] shadow-elegant">
-      <div className="p-6 border-b border-border bg-gradient-subtle">
+      <div className="p-4 sm:p-6 border-b border-border bg-gradient-subtle">
         <div className="flex items-center gap-3">
-          <MessageSquare className="w-6 h-6 text-primary" />
-          <h2 className="text-xl font-bold text-foreground">
-            Envío Manual (Opcional)
+          <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
+          <h2 className="text-lg sm:text-xl font-bold text-foreground">
+            Envío Manual
           </h2>
         </div>
         {!isConnected && (
-          <p className="text-sm text-destructive mt-2">
-            ⚠️ Escanea el código QR primero para autenticar tu WhatsApp
+          <p className="text-xs sm:text-sm text-destructive mt-2">
+            ⚠️ Conecta WhatsApp primero
           </p>
         )}
         {isConnected && (
-          <p className="text-sm text-green-600 mt-2">
-            � Envía mensajes directos por WhatsApp desde tu cuenta autenticada. Ideal para comunicación manual cuando el bot está desactivado.
+          <p className="text-xs sm:text-sm text-green-600 mt-2">
+            ✅ Listo para enviar mensajes
           </p>
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-3">
         {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full text-muted-foreground">
-            <p>No hay mensajes enviados aún</p>
+            <p className="text-sm">No hay mensajes enviados</p>
           </div>
         ) : (
           messages.map((msg) => (
             <div
               key={msg.id}
-              className="bg-secondary rounded-lg p-4 animate-in slide-in-from-bottom duration-300"
+              className="bg-secondary rounded-lg p-3 sm:p-4 animate-in slide-in-from-bottom duration-300"
             >
-              <div className="flex items-start justify-between mb-2">
-                <p className="font-semibold text-foreground">+{msg.numero}</p>
+              <div className="flex items-start justify-between mb-2 gap-2">
+                <p className="font-semibold text-foreground text-sm">+{msg.numero}</p>
                 <span
-                  className={`text-xs px-2 py-1 rounded-full ${
+                  className={`text-xs px-2 py-1 rounded-full flex-shrink-0 ${
                     msg.status === "sent"
                       ? "bg-primary/20 text-primary"
                       : msg.status === "error"
@@ -174,7 +176,7 @@ const ChatInterface = ({ isConnected }: ChatInterfaceProps) => {
                     : "Enviando..."}
                 </span>
               </div>
-              <p className="text-sm text-foreground mb-2">{msg.mensaje}</p>
+              <p className="text-xs sm:text-sm text-foreground mb-2 break-words">{msg.mensaje}</p>
               <p className="text-xs text-muted-foreground">
                 {msg.timestamp.toLocaleTimeString()}
               </p>
@@ -183,14 +185,14 @@ const ChatInterface = ({ isConnected }: ChatInterfaceProps) => {
         )}
       </div>
 
-      <form onSubmit={handleSubmit} className="p-6 border-t border-border">
-        <div className="space-y-4">
+      <form onSubmit={handleSubmit} className="p-3 sm:p-6 border-t border-border">
+        <div className="space-y-3 sm:space-y-4">
           <Input
-            placeholder="Número de teléfono (ej: 977292965)"
+            placeholder="Número (ej: 977292965)"
             value={numero}
             onChange={(e) => setNumero(e.target.value)}
             disabled={!isConnected || isSending}
-            className="transition-all"
+            className="transition-all text-sm"
             maxLength={15}
           />
           <div className="flex gap-2">
@@ -199,13 +201,14 @@ const ChatInterface = ({ isConnected }: ChatInterfaceProps) => {
               value={mensaje}
               onChange={(e) => setMensaje(e.target.value)}
               disabled={!isConnected || isSending}
-              className="flex-1 transition-all"
+              className="flex-1 transition-all text-sm"
               maxLength={1000}
             />
             <Button
               type="submit"
               disabled={!isConnected || isSending || !numero || !mensaje}
-              className="bg-gradient-primary shadow-elegant hover:shadow-strong transition-all"
+              className="bg-gradient-primary shadow-elegant hover:shadow-strong transition-all px-3"
+              size="sm"
             >
               {isSending ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

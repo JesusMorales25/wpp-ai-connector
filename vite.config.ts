@@ -8,6 +8,7 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    strictPort: true, // Forzar el puerto 8080, fallar si está ocupado
   },
   build: {
     outDir: "dist",

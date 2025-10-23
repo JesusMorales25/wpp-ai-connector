@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bot, Activity, MessageSquare, AlertTriangle, BarChart3, RotateCcw, Shield } from "lucide-react";
+import { Bot, Activity, MessageSquare, AlertTriangle, BarChart3, RotateCcw, Shield, Users, Clock, FileX } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -11,6 +11,10 @@ interface BotStats {
   messagesSentToAI: number;
   errors: number;
   spamBlocked: number;
+  rateLimited: number;
+  mediaIgnored: number;
+  systemIgnored: number;
+  uniqueUsers: number;
   startTime: string;
   uptime: string;
   messagesPerHour: number;
@@ -125,18 +129,6 @@ const BotControl = ({ isConnected }: BotControlProps) => {
           />
         </div>
 
-        {/* Descripción del funcionamiento */}
-        {isConnected && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h3 className="font-semibold text-blue-900 mb-2">¿Cómo funciona?</h3>
-            <ul className="text-sm text-blue-800 space-y-1">
-              <li>• Los mensajes que recibas en WhatsApp se envían automáticamente a tu bot IA</li>
-              <li>• Tu bot IA procesa el mensaje y responde automáticamente</li>
-              <li>• No necesitas hacer nada, el sistema trabaja en segundo plano</li>
-            </ul>
-          </div>
-        )}
-
         {/* Estadísticas */}
         {stats && isConnected && (
           <div className="space-y-4">
@@ -156,45 +148,94 @@ const BotControl = ({ isConnected }: BotControlProps) => {
               </Button>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              {/* Estadísticas principales */}
               <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                <div className="flex items-center gap-2 text-green-700">
+                <div className="flex items-center gap-2 text-green-700 mb-2">
                   <MessageSquare className="w-4 h-4" />
-                  <span className="text-sm font-medium">Mensajes recibidos</span>
+                  <span className="text-xs font-medium">Recibidos</span>
                 </div>
-                <p className="text-2xl font-bold text-green-900">{stats.messagesReceived}</p>
+                <p className="text-xl font-bold text-green-900">{stats.messagesReceived}</p>
               </div>
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <div className="flex items-center gap-2 text-blue-700">
+                <div className="flex items-center gap-2 text-blue-700 mb-2">
                   <Bot className="w-4 h-4" />
-                  <span className="text-sm font-medium">Enviados a IA</span>
+                  <span className="text-xs font-medium">A IA</span>
                 </div>
-                <p className="text-2xl font-bold text-blue-900">{stats.messagesSentToAI}</p>
+                <p className="text-xl font-bold text-blue-900">{stats.messagesSentToAI}</p>
               </div>
 
               <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-                <div className="flex items-center gap-2 text-purple-700">
-                  <Activity className="w-4 h-4" />
-                  <span className="text-sm font-medium">Tiempo activo</span>
+                <div className="flex items-center gap-2 text-purple-700 mb-2">
+                  <Users className="w-4 h-4" />
+                  <span className="text-xs font-medium">Usuarios</span>
                 </div>
-                <p className="text-lg font-bold text-purple-900">{stats.uptime}</p>
+                <p className="text-xl font-bold text-purple-900">{stats.uniqueUsers}</p>
               </div>
 
               <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-                <div className="flex items-center gap-2 text-orange-700">
+                <div className="flex items-center gap-2 text-orange-700 mb-2">
                   <AlertTriangle className="w-4 h-4" />
-                  <span className="text-sm font-medium">Errores</span>
+                  <span className="text-xs font-medium">Errores</span>
                 </div>
-                <p className="text-2xl font-bold text-orange-900">{stats.errors}</p>
+                <p className="text-xl font-bold text-orange-900">{stats.errors}</p>
               </div>
 
               <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                <div className="flex items-center gap-2 text-red-700">
+                <div className="flex items-center gap-2 text-red-700 mb-2">
                   <Shield className="w-4 h-4" />
-                  <span className="text-sm font-medium">Spam bloqueado</span>
+                  <span className="text-xs font-medium">Spam</span>
                 </div>
-                <p className="text-2xl font-bold text-red-900">{stats.spamBlocked}</p>
+                <p className="text-xl font-bold text-red-900">{stats.spamBlocked}</p>
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-yellow-700 mb-2">
+                  <Clock className="w-4 h-4" />
+                  <span className="text-xs font-medium">Rate Limit</span>
+                </div>
+                <p className="text-xl font-bold text-yellow-900">{stats.rateLimited}</p>
+              </div>
+
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-gray-700 mb-2">
+                  <FileX className="w-4 h-4" />
+                  <span className="text-xs font-medium">Media</span>
+                </div>
+                <p className="text-xl font-bold text-gray-900">{stats.mediaIgnored}</p>
+              </div>
+
+              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-indigo-700 mb-2">
+                  <Activity className="w-4 h-4" />
+                  <span className="text-xs font-medium">Uptime</span>
+                </div>
+                <p className="text-sm font-bold text-indigo-900">{stats.uptime}</p>
+              </div>
+            </div>
+
+            {/* Métricas de rendimiento */}
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-center">
+                <p className="text-sm text-emerald-700 font-medium">Eficiencia</p>
+                <p className="text-lg font-bold text-emerald-900">
+                  {stats.spamBlocked > 0 ? 
+                    Math.round((stats.spamBlocked / (stats.spamBlocked + stats.messagesReceived)) * 100) : 0}%
+                </p>
+                <p className="text-xs text-emerald-600">SPAM filtrado</p>
+              </div>
+
+              <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-3 text-center">
+                <p className="text-sm text-cyan-700 font-medium">Ahorro</p>
+                <p className="text-lg font-bold text-cyan-900">{stats.spamBlocked}</p>
+                <p className="text-xs text-cyan-600">Requests evitados</p>
+              </div>
+
+              <div className="bg-pink-50 border border-pink-200 rounded-lg p-3 text-center">
+                <p className="text-sm text-pink-700 font-medium">Sistema</p>
+                <p className="text-lg font-bold text-pink-900">{stats.systemIgnored}</p>
+                <p className="text-xs text-pink-600">Msgs de sistema</p>
               </div>
             </div>
 

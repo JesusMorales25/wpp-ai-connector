@@ -105,15 +105,43 @@ VITE_APP_LOGO_URL="https://cdn.proservices.com/brand/logo.png"
 
 - ✅ **Título dinámico del navegador**: Se actualiza según la página actual
 - ✅ **Meta tags personalizados**: SEO optimizado por cliente
-- ✅ **Logo personalizable**: Soporte para URLs externas
+- ✅ **Logo personalizable**: Soporte completo para URLs externas
 - ✅ **Copyright automático**: Año y empresa dinámicos
 - ✅ **Fallbacks seguros**: Valores por defecto si faltan variables
 - ✅ **TypeScript**: Completamente tipado y seguro
+
+## 🖼️ Configuración Avanzada de Logos
+
+### URLs Externas (RECOMENDADO para Deploy)
+```bash
+# CDN personalizado
+VITE_APP_LOGO_URL=https://cdn.miempresa.com/logo-principal.png
+
+# Desde tu sitio web
+VITE_APP_LOGO_URL=https://miempresa.com/assets/logo-corporativo.svg
+
+# Servicios de hosting de imágenes
+VITE_APP_LOGO_URL=https://images.miempresa.com/branding/logo-v3.png
+```
+
+### ✅ Mejores Prácticas para Logos
+1. **Formato**: PNG con transparencia o SVG (recomendado)
+2. **Tamaño**: 512x512px o mayor para mejor calidad
+3. **CDN**: Usar URLs de CDN para mejor rendimiento
+4. **HTTPS**: Siempre usar URLs seguras (obligatorio)
+5. **Fallback**: Sistema automático si la URL falla
+
+### 🔄 Funcionalidades Automáticas
+- **Error handling**: Fallback automático a inicial de empresa si la imagen falla
+- **Responsive**: Se adapta automáticamente a diferentes tamaños (sidebar, login, etc.)
+- **Optimización**: Carga lazy y manejo eficiente de recursos
+- **Cross-platform**: Compatible con Vercel, Railway, y otros servicios
 
 ## Beneficios
 
 1. **White-label ready**: Fácil personalización para reventa
 2. **Multi-tenant**: Misma base de código, diferentes marcas
 3. **SEO optimizado**: Meta tags personalizados por cliente
-4. **Mantenimiento simplificado**: Un solo codebase
-5. **Deploy flexible**: Variables de entorno en cualquier plataforma
+4. **Logo dinámico**: URLs externas sin necesidad de subir archivos
+5. **Mantenimiento simplificado**: Un solo codebase
+6. **Deploy flexible**: Variables de entorno en cualquier plataforma

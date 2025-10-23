@@ -68,7 +68,25 @@ const LoginPage: React.FC = () => {
         <div className="relative flex flex-col justify-center items-center text-white p-12 z-10 w-full">
           <div className="text-center space-y-8 max-w-lg mx-auto">
             <div className="space-y-6">
-              <Building2 className="w-24 h-24 mx-auto text-white/90" />
+              {/* Logo dinámico - URL o icono Building2 */}
+              {BRANDING_CONFIG.logoUrl && !BRANDING_CONFIG.logoUrl.endsWith('/logo.png') ? (
+                <div className="flex justify-center">
+                  <img 
+                    src={BRANDING_CONFIG.logoUrl} 
+                    alt={`${BRANDING_CONFIG.companyName} Logo`}
+                    className="w-24 h-24 object-contain filter brightness-0 invert"
+                    onError={(e) => {
+                      // Fallback al icono si la imagen falla
+                      e.currentTarget.style.display = 'none';
+                      e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                    }}
+                  />
+                  <Building2 className="w-24 h-24 mx-auto text-white/90 hidden" />
+                </div>
+              ) : (
+                <Building2 className="w-24 h-24 mx-auto text-white/90" />
+              )}
+              
               <div className="space-y-4">
                 <h2 className="text-4xl font-bold leading-tight text-center">
                   Gestión Empresarial
@@ -114,9 +132,28 @@ const LoginPage: React.FC = () => {
         <div className="w-full max-w-md space-y-6">
           {/* Company Logo and Header */}
           <div className="text-center space-y-3">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 text-white text-2xl font-bold shadow-lg">
-              {BRANDING_CONFIG.getCompanyInitial()}
-            </div>
+            {/* Logo dinámico en el formulario */}
+            {BRANDING_CONFIG.logoUrl && !BRANDING_CONFIG.logoUrl.endsWith('/logo.png') ? (
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white shadow-lg p-2">
+                <img 
+                  src={BRANDING_CONFIG.logoUrl} 
+                  alt={`${BRANDING_CONFIG.companyName} Logo`}
+                  className="w-full h-full object-contain"
+                  onError={(e) => {
+                    // Fallback al diseño original si la imagen falla
+                    const parent = e.currentTarget.parentElement;
+                    if (parent) {
+                      parent.className = "inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 text-white text-2xl font-bold shadow-lg";
+                      parent.innerHTML = BRANDING_CONFIG.getCompanyInitial();
+                    }
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 text-white text-2xl font-bold shadow-lg">
+                {BRANDING_CONFIG.getCompanyInitial()}
+              </div>
+            )}
             <div>
               <h1 className="text-3xl font-bold text-gray-900">{BRANDING_CONFIG.appName}</h1>
               <p className="text-gray-600 mt-1">{BRANDING_CONFIG.appDescription}</p>

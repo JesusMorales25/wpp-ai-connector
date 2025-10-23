@@ -157,9 +157,28 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         <div className="p-6 border-b border-border">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-primary rounded-lg shadow-elegant">
-                <MessageCircle className="w-5 h-5 text-primary-foreground" />
-              </div>
+              {/* Logo dinámico en el sidebar */}
+              {BRANDING_CONFIG.logoUrl && !BRANDING_CONFIG.logoUrl.endsWith('/logo.png') ? (
+                <div className="w-10 h-10 rounded-lg shadow-elegant bg-white p-1.5 flex items-center justify-center">
+                  <img 
+                    src={BRANDING_CONFIG.logoUrl} 
+                    alt={`${BRANDING_CONFIG.companyName} Logo`}
+                    className="w-full h-full object-contain"
+                    onError={(e) => {
+                      // Fallback al diseño original si la imagen falla
+                      const parent = e.currentTarget.parentElement;
+                      if (parent) {
+                        parent.className = "p-2 bg-gradient-primary rounded-lg shadow-elegant";
+                        parent.innerHTML = '<svg class="w-5 h-5 text-primary-foreground" fill="currentColor" viewBox="0 0 24 24"><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>';
+                      }
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="p-2 bg-gradient-primary rounded-lg shadow-elegant">
+                  <MessageCircle className="w-5 h-5 text-primary-foreground" />
+                </div>
+              )}
               <div>
                 <h2 className="font-bold text-foreground">{BRANDING_CONFIG.appName}</h2>
                 <p className="text-xs text-muted-foreground">

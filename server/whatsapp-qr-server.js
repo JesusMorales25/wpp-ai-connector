@@ -175,9 +175,11 @@ let botStats = {
 // CONFIGURACIONES ULTRA-OPTIMIZADAS PARA REDUCIR COSTOS
 const BOT_CONFIG = {
     MAX_MESSAGE_LENGTH: 800,         // REDUCIDO: Máximo 800 caracteres
-    MAX_MESSAGES_PER_MINUTE: 3,      // ULTRA-REDUCIDO: Solo 3 mensajes por minuto
-    COOLDOWN_SECONDS: 15,            // OPTIMIZADO: Solo 15 segundos entre mensajes
+    MAX_MESSAGES_PER_MINUTE: 10,     // Aumentado: 10 mensajes por minuto (más conversacional)
+    COOLDOWN_SECONDS: 0,             // ELIMINADO: Sin cooldown (respuestas inmediatas)
     BLOCKED_WORDS: ['spam', 'publicidad', 'oferta', 'promocion', 'descuento', 'gratis', 'premio', 'marketing'],
+    ENABLE_TYPING_INDICATOR: true,   // Mostrar "escribiendo..." (opcional)
+    TYPING_DURATION: 1000,           // Solo 1 segundo de "escribiendo..." (rápido)
     TYPING_SPEED: 50,                // Milisegundos por carácter (velocidad de escritura humana)
     MIN_TYPING_TIME: 2000,           // Mínimo 2 segundos mostrando "escribiendo..."
     MAX_TYPING_TIME: 8000,           // Máximo 8 segundos para no hacer esperar mucho
@@ -446,14 +448,8 @@ const initializeWhatsAppClient = async () => {
                     return;
                 }
 
-                // Rate limiting ULTRA-OPTIMIZADO (reducido a 15 segundos)
-                const lastMessage = userLastMessage.get(userId);
-                if (lastMessage && (now - lastMessage) < (BOT_CONFIG.COOLDOWN_SECONDS * 1000)) {
-                    botStats.rateLimited++;
-                    return; // SILENCIOSO - Sin respuesta para ahorrar recursos
-                }
-
-                // Contador de mensajes por minuto ULTRA-OPTIMIZADO
+                // Rate limiting solo por minuto (sin cooldown entre mensajes)
+                // Esto permite conversaciones fluidas
                 let userStats = userMessageCount.get(userId) || {count: 0, windowStart: now};
                 
                 // Resetear ventana más frecuentemente
@@ -500,10 +496,6 @@ const initializeWhatsAppClient = async () => {
 
                 // Extraer el número de teléfono (sin @c.us)
                 const phoneNumber = message.from.replace('@c.us', '');
-                
-                // DELAY ANTI-BAN OPTIMIZADO: Delay más corto pero efectivo
-                const delay = Math.random() * 1500 + 500; // 0.5-2 segundos (más rápido)
-                await new Promise(resolve => setTimeout(resolve, delay));
 
                 // URL del bot desde variable de entorno o fallback
                 const botApiUrl = process.env.BOT_API_URL || 'https://iacrm-backend.onrender.com/api/chat/send';
@@ -564,33 +556,18 @@ const initializeWhatsAppClient = async () => {
                         smartLog('real', '📱 Enviando respuesta del bot al usuario');
                         
                         try {
-                            // 1. Mostrar "escribiendo..." en WhatsApp
-                            const chat = await message.getChat();
-                            await chat.sendStateTyping();
-                            smartLog('debug', '⌨️ Estado "escribiendo..." activado');
+                            // Mostrar "escribiendo..." brevemente (solo si está habilitado)
+                            if (BOT_CONFIG.ENABLE_TYPING_INDICATOR) {
+                                const chat = await message.getChat();
+                                await chat.sendStateTyping();
+                                
+                                // Delay mínimo solo para que se vea el indicador
+                                await new Promise(resolve => setTimeout(resolve, BOT_CONFIG.TYPING_DURATION));
+                            }
                             
-                            // 2. DELAY realista: Simular tiempo de escritura basado en longitud del mensaje
-                            // Calcula tiempo según la longitud del texto (como si estuviera escribiendo)
-                            const typingTime = Math.min(
-                                Math.max(botReply.length * BOT_CONFIG.TYPING_SPEED, BOT_CONFIG.MIN_TYPING_TIME),
-                                BOT_CONFIG.MAX_TYPING_TIME
-                            );
-                            
-                            // Mostrar estado "escribiendo..." durante todo el tiempo calculado
-                            const typingInterval = setInterval(async () => {
-                                try {
-                                    await chat.sendStateTyping();
-                                } catch (err) {
-                                    // Ignorar errores del estado typing
-                                }
-                            }, 3000); // Refrescar cada 3 segundos para mantener el estado
-                            
-                            await new Promise(resolve => setTimeout(resolve, typingTime));
-                            clearInterval(typingInterval);
-                            
-                            // 3. Enviar el mensaje (automáticamente cambia a "en línea")
+                            // Enviar respuesta inmediatamente
                             await message.reply(botReply);
-                            smartLog('real', `✅ Respuesta enviada (${botReply.length} chars, ${(typingTime/1000).toFixed(1)}s typing)`);
+                            smartLog('real', `✅ Respuesta enviada (${botReply.length} chars)`);
                         } catch (replyError) {
                             smartLog('error', 'Error enviando respuesta:', replyError.message);
                         }

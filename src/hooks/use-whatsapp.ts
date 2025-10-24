@@ -127,10 +127,12 @@ export const useWhatsApp = () => {
     setError(null);
     
     try {
+      const apiKey = import.meta.env.VITE_BOT_API_KEY;
       const response = await fetch(`${API_BASE_URL}/api/whatsapp/disconnect`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(apiKey && { 'X-API-Key': apiKey }),
         },
       });
       
@@ -164,10 +166,12 @@ export const useWhatsApp = () => {
     setError(null);
     
     try {
+      const apiKey = import.meta.env.VITE_BOT_API_KEY;
       const response = await fetch(`${API_BASE_URL}/api/whatsapp/clear-session`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(apiKey && { 'X-API-Key': apiKey }),
         },
       });
       

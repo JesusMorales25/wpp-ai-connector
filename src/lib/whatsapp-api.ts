@@ -22,13 +22,31 @@ export class WhatsAppApiService {
     try {
       const url = getWhatsAppApiUrl(endpoint);
       
+      // Log solo en desarrollo
+      if (import.meta.env.DEV) {
+        console.log(`📡 WhatsApp API Request: ${options.method || 'GET'} ${url}`);
+      }
+      
+      // Agregar API Key desde variables de entorno
+      const apiKey = import.meta.env.VITE_BOT_API_KEY;
+      
       const response = await fetchWithTimeout(url, {
         headers: {
           'Content-Type': 'application/json',
+          ...(apiKey && { 'X-API-Key': apiKey }), // Solo agregar si existe
           ...options.headers,
         },
         ...options,
       });
+
+      // Verificar si la respuesta es JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error(`❌ Expected JSON but got: ${contentType}`);
+        console.error(`Response preview: ${text.substring(0, 200)}`);
+        throw new Error(`El servidor respondió con formato incorrecto (${response.status}). Esperaba JSON pero recibió HTML.`);
+      }
 
       const data = await response.json();
 
@@ -38,7 +56,7 @@ export class WhatsAppApiService {
 
       return data;
     } catch (error) {
-      console.error(`API Error for ${endpoint}:`, error);
+      console.error(`❌ API Error for ${endpoint}:`, error);
       throw error;
     }
   }

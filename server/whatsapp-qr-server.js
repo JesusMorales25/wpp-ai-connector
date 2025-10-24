@@ -10,6 +10,31 @@ const PORT = process.env.PORT || 3001;
 // Configuración específica para Railway/Producción
 const isProduction = process.env.NODE_ENV === 'production';
 
+// Middleware de seguridad - Headers HTTP
+app.use((req, res, next) => {
+  // Prevenir clickjacking
+  res.setHeader('X-Frame-Options', 'DENY');
+  
+  // Prevenir MIME type sniffing
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  
+  // Habilitar XSS protection
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  
+  // Content Security Policy
+  res.setHeader('Content-Security-Policy', "default-src 'self'");
+  
+  // Strict Transport Security (solo en producción con HTTPS)
+  if (isProduction) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  
+  // Ocultar información del servidor
+  res.removeHeader('X-Powered-By');
+  
+  next();
+});
+
 // Configuración de CORS con variables de entorno
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
   ? process.env.ALLOWED_ORIGINS.split(',')
@@ -17,23 +42,112 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 
 const corsOptions = {
   origin: function (origin, callback) {
-    // Permitir requests sin origin (mobile apps, etc.) en desarrollo
-    if (!origin && !isProduction) return callback(null, true);
+    // Permitir requests sin origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
     
     // Verificar si el origin está en la lista permitida
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
       callback(null, true);
     } else {
+      console.log(`⚠️ CORS blocked origin: ${origin}`);
+      console.log(`Allowed origins:`, allowedOrigins);
       callback(new Error('No permitido por CORS'));
     }
   },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-API-Key'],
   optionsSuccessStatus: 200
 };
 
-// Middleware
+// Middleware de seguridad - Rate limiting por IP
+const requestCounts = new Map();
+const RATE_LIMIT = {
+  windowMs: 60000, // 1 minuto
+  maxRequests: 100 // 100 requests por minuto por IP
+};
+
+const rateLimitMiddleware = (req, res, next) => {
+  const ip = req.ip || req.connection.remoteAddress;
+  const now = Date.now();
+  
+  if (!requestCounts.has(ip)) {
+    requestCounts.set(ip, { count: 1, resetTime: now + RATE_LIMIT.windowMs });
+  } else {
+    const data = requestCounts.get(ip);
+    
+    if (now > data.resetTime) {
+      data.count = 1;
+      data.resetTime = now + RATE_LIMIT.windowMs;
+    } else {
+      data.count++;
+      
+      if (data.count > RATE_LIMIT.maxRequests) {
+        return res.status(429).json({
+          success: false,
+          error: 'Too many requests. Please try again later.'
+        });
+      }
+    }
+  }
+  
+  next();
+};
+
+// Middleware de validación de API key (opcional, para endpoints sensibles)
+const validateApiKey = (req, res, next) => {
+  const apiKey = req.headers['x-api-key'];
+  const expectedKey = process.env.BOT_API_KEY;
+  
+  // Si no hay API key configurada, permitir acceso (para desarrollo)
+  if (!expectedKey) {
+    return next();
+  }
+  
+  if (!apiKey || apiKey !== expectedKey) {
+    return res.status(401).json({
+      success: false,
+      error: 'Unauthorized: Invalid API key'
+    });
+  }
+  
+  next();
+};
+
+// Middleware de sanitización de inputs
+const sanitizeInput = (req, res, next) => {
+  if (req.body) {
+    // Limitar tamaño del body
+    const bodySize = JSON.stringify(req.body).length;
+    if (bodySize > 10000) { // 10KB max
+      return res.status(413).json({
+        success: false,
+        error: 'Request body too large'
+      });
+    }
+    
+    // Sanitizar campos de texto
+    Object.keys(req.body).forEach(key => {
+      if (typeof req.body[key] === 'string') {
+        // Remover caracteres peligrosos
+        req.body[key] = req.body[key]
+          .replace(/[<>]/g, '') // Prevenir XSS
+          .trim()
+          .substring(0, 5000); // Limitar longitud
+      }
+    });
+  }
+  
+  next();
+};
+
+// Aplicar middleware
 app.use(cors(corsOptions));
-app.use(express.json());
+// Manejar preflight requests explícitamente
+app.options('*', cors(corsOptions));
+app.use(express.json({ limit: '10kb' })); // Limitar tamaño de JSON
+app.use(rateLimitMiddleware);
+app.use(sanitizeInput);
 
 // Estado de la aplicación - Solo para conexión QR
 let whatsappClient = null;
@@ -690,7 +804,8 @@ app.post('/api/whatsapp/initialize', async (req, res) => {
 });
 
 // Desconectar cliente
-app.post('/api/whatsapp/disconnect', async (req, res) => {
+// PROTEGIDO: Requiere API key válida
+app.post('/api/whatsapp/disconnect', validateApiKey, async (req, res) => {
     try {
         await cleanupClient();
         
@@ -738,7 +853,8 @@ app.get('/api/whatsapp/info', async (req, res) => {
 });
 
 // Enviar mensaje manual (para comunicación directa cuando el bot está desactivado)
-app.post('/api/whatsapp/send', async (req, res) => {
+// PROTEGIDO: Requiere API key válida
+app.post('/api/whatsapp/send', validateApiKey, async (req, res) => {
     try {
         const { numero, mensaje } = req.body;
         
@@ -808,7 +924,8 @@ app.post('/api/whatsapp/send', async (req, res) => {
 });
 
 // Limpiar sesión (forzar nuevo QR)
-app.post('/api/whatsapp/clear-session', async (req, res) => {
+// PROTEGIDO: Requiere API key válida
+app.post('/api/whatsapp/clear-session', validateApiKey, async (req, res) => {
     try {
         // Desconectar cliente primero
         await cleanupClient();
@@ -834,7 +951,16 @@ app.post('/api/whatsapp/clear-session', async (req, res) => {
     }
 });
 
-// Endpoint de salud
+// Health check en la raíz para Railway
+app.get('/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        service: 'WhatsApp QR Connection Service',
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Endpoint de salud detallado
 app.get('/api/health', (req, res) => {
     res.json({
         status: 'ok',

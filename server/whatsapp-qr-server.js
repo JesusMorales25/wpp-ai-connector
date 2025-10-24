@@ -517,12 +517,17 @@ const initializeWhatsAppClient = async () => {
                 }
                 // Opción 2: API Key (si existe BOT_BACKEND_API_KEY)
                 else if (process.env.BOT_BACKEND_API_KEY) {
-                    headers['X-API-Key'] = process.env.BOT_BACKEND_API_KEY;
+                    headers['X-API-KEY'] = process.env.BOT_BACKEND_API_KEY; // Uppercase KEY
                 }
                 // Opción 3: Basic Auth (si existen BOT_USERNAME y BOT_PASSWORD)
                 else if (process.env.BOT_USERNAME && process.env.BOT_PASSWORD) {
                     const credentials = Buffer.from(`${process.env.BOT_USERNAME}:${process.env.BOT_PASSWORD}`).toString('base64');
                     headers['Authorization'] = `Basic ${credentials}`;
+                }
+                
+                // Log headers en desarrollo (sin exponer la key completa)
+                if (!isProduction && process.env.BOT_BACKEND_API_KEY) {
+                    console.log('🔑 Enviando con X-API-KEY:', process.env.BOT_BACKEND_API_KEY ? '[CONFIGURADA]' : '[NO CONFIGURADA]');
                 }
 
                 const response = await fetch(botApiUrl, {

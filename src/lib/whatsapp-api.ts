@@ -20,7 +20,7 @@ export class WhatsAppApiService {
     options: RequestInit = {}
   ): Promise<T> {
     try {
-      const url = getWhatsAppApiUrl(`/api/whatsapp${endpoint}`);
+      const url = getWhatsAppApiUrl(endpoint);
       
       const response = await fetchWithTimeout(url, {
         headers: {
@@ -44,44 +44,44 @@ export class WhatsAppApiService {
   }
 
   static async getStatus() {
-    return this.request<ApiResponse>('/status');
+    return this.request<ApiResponse>('/api/whatsapp/status');
   }
 
   static async initialize() {
-    return this.request<ApiResponse>('/initialize', {
+    return this.request<ApiResponse>('/api/whatsapp/initialize', {
       method: 'POST',
     });
   }
 
   static async disconnect() {
-    return this.request<ApiResponse>('/disconnect', {
+    return this.request<ApiResponse>('/api/whatsapp/disconnect', {
       method: 'POST',
     });
   }
 
   static async clearSession() {
-    return this.request<ApiResponse>('/clear-session', {
+    return this.request<ApiResponse>('/api/whatsapp/clear-session', {
       method: 'POST',
     });
   }
 
   static async sendMessage(numero: string, mensaje: string) {
-    return this.request<SendMessageResponse>('/send', {
+    return this.request<SendMessageResponse>('/api/whatsapp/send', {
       method: 'POST',
       body: JSON.stringify({ numero, mensaje }),
     });
   }
 
   static async getClientInfo() {
-    return this.request<ApiResponse>('/info');
+    return this.request<ApiResponse>('/api/whatsapp/info');
   }
 
   static async getStats() {
-    return this.request<ApiResponse>('/stats');
+    return this.request<ApiResponse>('/api/whatsapp/stats');
   }
 
   static async toggleAutoBot(enabled: boolean) {
-    return this.request<ApiResponse>('/toggle-autobot', {
+    return this.request<ApiResponse>('/api/whatsapp/toggle-autobot', {
       method: 'POST',
       body: JSON.stringify({ enabled }),
     });

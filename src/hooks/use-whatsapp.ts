@@ -14,7 +14,7 @@ export interface WhatsAppInfo {
   phone: string;
 }
 
-const API_BASE_URL = `${API_CONFIG.WHATSAPP_API_URL}/api/whatsapp`;
+const API_BASE_URL = API_CONFIG.WHATSAPP_API_URL;
 
 export const useWhatsApp = () => {
   const [status, setStatus] = useState<WhatsAppStatus>({
@@ -31,7 +31,7 @@ export const useWhatsApp = () => {
   // Función para obtener el estado actual
   const checkStatus = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/status`, {
+      const response = await fetch(`${API_BASE_URL}/api/whatsapp/status`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -51,7 +51,7 @@ export const useWhatsApp = () => {
       // Si está conectado, obtener información del cliente
       if (data.isReady && data.status === 'connected') {
         try {
-          const infoResponse = await fetch(`${API_BASE_URL}/info`, {
+          const infoResponse = await fetch(`${API_BASE_URL}/api/whatsapp/info`, {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json',
@@ -90,7 +90,7 @@ export const useWhatsApp = () => {
     setError(null);
     
     try {
-      const response = await fetch(`${API_BASE_URL}/initialize`, {
+      const response = await fetch(`${API_BASE_URL}/api/whatsapp/initialize`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -127,7 +127,7 @@ export const useWhatsApp = () => {
     setError(null);
     
     try {
-      const response = await fetch(`${API_BASE_URL}/disconnect`, {
+      const response = await fetch(`${API_BASE_URL}/api/whatsapp/disconnect`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -164,7 +164,7 @@ export const useWhatsApp = () => {
     setError(null);
     
     try {
-      const response = await fetch(`${API_BASE_URL}/clear-session`, {
+      const response = await fetch(`${API_BASE_URL}/api/whatsapp/clear-session`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -198,7 +198,7 @@ export const useWhatsApp = () => {
   // Función para enviar mensaje
   const sendMessage = useCallback(async (numero: string, mensaje: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/send`, {
+      const response = await fetch(`${API_BASE_URL}/api/whatsapp/send`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

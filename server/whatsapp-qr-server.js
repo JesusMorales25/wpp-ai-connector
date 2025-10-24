@@ -504,12 +504,30 @@ const initializeWhatsAppClient = async () => {
 
                 // URL del bot desde variable de entorno o fallback
                 const botApiUrl = process.env.BOT_API_URL || 'https://iacrm-backend.onrender.com/api/chat/send';
+                
+                // Headers de autenticación
+                const headers = {
+                    'Content-Type': 'application/json',
+                };
+                
+                // Agregar autenticación según lo configurado
+                // Opción 1: JWT Token (si existe BOT_JWT_TOKEN)
+                if (process.env.BOT_JWT_TOKEN) {
+                    headers['Authorization'] = `Bearer ${process.env.BOT_JWT_TOKEN}`;
+                }
+                // Opción 2: API Key (si existe BOT_BACKEND_API_KEY)
+                else if (process.env.BOT_BACKEND_API_KEY) {
+                    headers['X-API-Key'] = process.env.BOT_BACKEND_API_KEY;
+                }
+                // Opción 3: Basic Auth (si existen BOT_USERNAME y BOT_PASSWORD)
+                else if (process.env.BOT_USERNAME && process.env.BOT_PASSWORD) {
+                    const credentials = Buffer.from(`${process.env.BOT_USERNAME}:${process.env.BOT_PASSWORD}`).toString('base64');
+                    headers['Authorization'] = `Basic ${credentials}`;
+                }
 
                 const response = await fetch(botApiUrl, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers,
                     body: JSON.stringify({
                         numero: phoneNumber,
                         mensaje: message.body

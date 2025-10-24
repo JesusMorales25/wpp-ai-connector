@@ -39,9 +39,6 @@ export const API_CONFIG = {
   POLLING_INTERVAL
 };
 
-// Debug de la configuración final
-console.log('🚀 Final API Config:', API_CONFIG);
-
 // Función helper para construir URLs de la API de WhatsApp
 export const getWhatsAppApiUrl = (endpoint: string) => {
   return `${API_CONFIG.WHATSAPP_API_URL}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;

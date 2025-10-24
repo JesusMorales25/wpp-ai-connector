@@ -1,4 +1,5 @@
 import { backendApi } from './backend-api.service';
+import { API_CONFIG } from '@/lib/api-config';
 import { 
   LoginRequest, 
   LoginResponse, 
@@ -130,7 +131,14 @@ export class AuthService {
       
       // Verificar si es un error de red
       if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new Error('No se puede conectar con el servidor. Verifica que el backend esté ejecutándose en http://localhost:8081');
+        const backendUrl = API_CONFIG.BACKEND_API_URL || 'http://localhost:8081';
+        const isLocal = backendUrl.includes('localhost');
+        
+        if (isLocal) {
+          throw new Error(`No se puede conectar con el servidor local. Verifica que el backend esté ejecutándose en ${backendUrl}`);
+        } else {
+          throw new Error(`No se puede conectar con el servidor. Verifica la URL del backend: ${backendUrl}`);
+        }
       }
       
       const authError: AuthError = {
@@ -145,8 +153,9 @@ export class AuthService {
   // Register
   async register(data: RegisterRequest): Promise<User> {
     try {
+      const backendUrl = API_CONFIG.BACKEND_API_URL || 'http://localhost:8081';
       // Usar backendApi si está disponible
-      const response = await fetch(`http://localhost:8081/auth/register`, {
+      const response = await fetch(`${backendUrl}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

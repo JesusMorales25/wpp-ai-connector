@@ -871,7 +871,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('3. Tu bot IA responderá automáticamente por WhatsApp');
     console.log('');
     console.log(`🤖 Bot automático: ${autoBotEnabled ? 'ACTIVADO ✅' : 'DESACTIVADO ❌'}`);
-    console.log(`🎯 Bot IA endpoint: https://ianeg-bot-backend-up.onrender.com/api/chat/send`);
+    console.log(`🎯 Bot IA endpoint: [CONFIGURADO]`);
     
     if (isProduction) {
         console.log('🚂 Running on Railway - Check logs for QR code');

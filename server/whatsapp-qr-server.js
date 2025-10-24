@@ -502,7 +502,10 @@ const initializeWhatsAppClient = async () => {
                 const delay = Math.random() * 1500 + 500; // 0.5-2 segundos (más rápido)
                 await new Promise(resolve => setTimeout(resolve, delay));
 
-                const response = await fetch('https://ianeg-bot-backend-up.onrender.com/api/chat/send', {
+                // URL del bot desde variable de entorno o fallback
+                const botApiUrl = process.env.BOT_API_URL || 'https://iacrm-backend.onrender.com/api/chat/send';
+
+                const response = await fetch(botApiUrl, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -511,7 +514,7 @@ const initializeWhatsAppClient = async () => {
                         numero: phoneNumber,
                         mensaje: message.body
                     }),
-                    signal: AbortSignal.timeout(10000) // TIMEOUT más corto: 10 segundos
+                    signal: AbortSignal.timeout(60000) // TIMEOUT aumentado: 60 segundos para Render free tier
                 });
 
                 // Leer el cuerpo de la respuesta como texto para manejar JSON y texto plano
@@ -562,7 +565,18 @@ const initializeWhatsAppClient = async () => {
                 smartLog('error', '❌ Error procesando mensaje:', error.message);
                 
                 try {
-                    await message.reply('Disculpa, ocurrió un error. Por favor intenta nuevamente.');
+                    // Mensaje de error más específico según el tipo de error
+                    let errorMessage = 'Disculpa, ocurrió un error. Por favor intenta nuevamente.';
+                    
+                    if (error.name === 'AbortError' || error.message.includes('timeout')) {
+                        errorMessage = 'El servidor está tardando en responder. Por favor intenta en unos momentos.';
+                        smartLog('error', '⏱️ Timeout: El backend de IA tardó más de 60 segundos en responder');
+                    } else if (error.message.includes('fetch')) {
+                        errorMessage = 'No se pudo conectar con el servidor. Por favor intenta más tarde.';
+                        smartLog('error', '🔌 Error de conexión con el backend de IA');
+                    }
+                    
+                    await message.reply(errorMessage);
                 } catch (replyError) {
                     smartLog('error', 'Error enviando mensaje de error:', replyError.message);
                 }

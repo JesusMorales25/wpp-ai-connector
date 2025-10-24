@@ -475,6 +475,7 @@ const initializeWhatsAppClient = async () => {
                     message.body.toLowerCase().includes(word.toLowerCase()))) {
                     botStats.spamBlocked++;
                     return; // Sin respuesta para palabras prohibidas
+                    return;
                 }
 
                 // Evitar mensajes duplicados
@@ -587,32 +588,21 @@ const initializeWhatsAppClient = async () => {
                 botStats.errors++;
                 smartLog('error', '❌ Error procesando mensaje:', error.message);
                 
-                // SOLO enviar mensaje de error en casos críticos
-                // No enviar mensaje si es un error de procesamiento interno
                 try {
-                    let shouldNotifyUser = false;
-                    let errorMessage = null;
+                    // Mensaje de error más específico según el tipo de error
+                    let errorMessage = 'Disculpa, ocurrió un error. Por favor intenta nuevamente.';
                     
                     if (error.name === 'AbortError' || error.message.includes('timeout')) {
-                        shouldNotifyUser = true;
-                        errorMessage = 'El servidor está tardando en responder. Intenta en unos momentos.';
-                        smartLog('error', '⏱️ Timeout: El backend de IA tardó más de 60 segundos');
-                    } else if (error.message.includes('401')) {
-                        // No notificar al usuario sobre errores de autenticación (son del servidor)
-                        smartLog('error', '🔐 Error 401: Revisar BOT_BACKEND_API_KEY en Railway');
-                    } else if (error.message.includes('fetch') || error.message.includes('ECONNREFUSED')) {
-                        shouldNotifyUser = true;
-                        errorMessage = 'No se puede conectar con el servidor. Intenta más tarde.';
+                        errorMessage = 'El servidor está tardando en responder. Por favor intenta en unos momentos.';
+                        smartLog('error', '⏱️ Timeout: El backend de IA tardó más de 60 segundos en responder');
+                    } else if (error.message.includes('fetch')) {
+                        errorMessage = 'No se pudo conectar con el servidor. Por favor intenta más tarde.';
                         smartLog('error', '🔌 Error de conexión con el backend de IA');
                     }
                     
-                    // Solo enviar mensaje si es necesario
-                    if (shouldNotifyUser && errorMessage) {
-                        await message.reply(errorMessage);
-                    }
+                    await message.reply(errorMessage);
                 } catch (replyError) {
-                    // Si falla el reply, solo log pero no bloquear
-                    smartLog('error', 'Error enviando mensaje de error (ignorado):', replyError.message);
+                    smartLog('error', 'Error enviando mensaje de error:', replyError.message);
                 }
             }
         });

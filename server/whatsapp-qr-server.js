@@ -222,6 +222,39 @@ setInterval(() => {
     if (BOT_CONFIG.ENABLE_LOGS) console.log('🧹 Memoria optimizada');
 }, BOT_CONFIG.MEMORY_CLEANUP_INTERVAL); // Cada 15 minutos
 
+// WATCHDOG: Monitorear y reiniciar conexión si se queda colgada
+let lastHealthCheck = Date.now();
+setInterval(async () => {
+    // Si el cliente dice estar listo pero no responde, reiniciar
+    if (isClientReady && whatsappClient) {
+        try {
+            // Intentar verificar estado (con timeout)
+            const healthCheck = Promise.race([
+                whatsappClient.getState().then(() => true),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Health check timeout')), 10000))
+            ]);
+            
+            await healthCheck;
+            lastHealthCheck = Date.now();
+            
+        } catch (error) {
+            console.error('⚠️ Watchdog: Cliente no responde, reiniciando...', error.message);
+            
+            // Marcar como desconectado
+            isClientReady = false;
+            connectionStatus = 'reconnecting';
+            
+            // Reiniciar cliente
+            try {
+                await whatsappClient.destroy();
+                await initializeWhatsAppClient();
+            } catch (restartError) {
+                console.error('❌ Watchdog: Error reiniciando cliente:', restartError.message);
+            }
+        }
+    }
+}, 60000); // Cada 1 minuto
+
 // SISTEMA DE LOGS ULTRA-SILENCIOSO
 const LOG_CONFIG = {
     ENABLE_SPAM_LOGS: false,     // NUNCA loggear SPAM (ahorra I/O masivo)
@@ -282,7 +315,7 @@ const initializeWhatsAppClient = async () => {
         // Configuración específica para Railway/Docker
         const puppeteerConfig = {
             headless: true,
-            timeout: 120000, // Aumentar timeout
+            timeout: 180000, // 3 minutos de timeout (aumentado para conexiones lentas)
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
@@ -307,7 +340,9 @@ const initializeWhatsAppClient = async () => {
                 '--run-all-compositor-stages-before-draw',
                 '--disable-ipc-flooding-protection',
                 '--memory-pressure-off',
-                '--max_old_space_size=4096'
+                '--max_old_space_size=4096',
+                '--disable-software-rasterizer', // Mejora estabilidad
+                '--disable-blink-features=AutomationControlled' // Evita detección
             ],
             handleSIGINT: false,
             handleSIGTERM: false,
@@ -356,20 +391,46 @@ const initializeWhatsAppClient = async () => {
         });
 
         // Evento: Fallo de autenticación
-        whatsappClient.on('auth_failure', (msg) => {
-            console.error('Authentication failure:', msg);
+        whatsappClient.on('auth_failure', async (msg) => {
+            console.error('❌ Authentication failure:', msg);
             connectionStatus = 'disconnected';
             qrCodeData = null;
             initializationInProgress = false;
+            
+            // Limpiar sesión corrupta y reintentar
+            console.log('🗑️ Limpiando sesión corrupta...');
+            try {
+                await whatsappClient.destroy();
+                // Dar tiempo para limpiar
+                setTimeout(async () => {
+                    console.log('🔄 Reiniciando cliente para generar nuevo QR...');
+                    await initializeWhatsAppClient();
+                }, 3000);
+            } catch (error) {
+                console.error('Error limpiando sesión:', error.message);
+            }
         });
 
         // Evento: Cliente desconectado
-        whatsappClient.on('disconnected', (reason) => {
-            console.log('WhatsApp Client disconnected:', reason);
+        whatsappClient.on('disconnected', async (reason) => {
+            console.log('⚠️ WhatsApp Client disconnected:', reason);
             isClientReady = false;
             connectionStatus = 'disconnected';
             qrCodeData = null;
             initializationInProgress = false;
+            
+            // Intentar reconectar automáticamente después de 5 segundos
+            console.log('🔄 Intentando reconectar en 5 segundos...');
+            setTimeout(async () => {
+                try {
+                    console.log('🔄 Iniciando reconexión automática...');
+                    await whatsappClient.destroy();
+                    await initializeWhatsAppClient();
+                } catch (error) {
+                    console.error('❌ Error en reconexión automática:', error.message);
+                    console.log('💡 Requiere reconexión manual - escanear QR nuevamente');
+                }
+            }, 5000);
         });
 
         // Evento: Mensaje recibido - FILTROS ULTRA-TEMPRANOS ANTI-SPAM (SILENCIOSOS)
@@ -635,16 +696,42 @@ const initializeWhatsAppClient = async () => {
 // Rutas de la API
 
 // Obtener estado de conexión y QR
-app.get('/api/whatsapp/status', (req, res) => {
-    res.json({
-        status: connectionStatus,
-        isReady: isClientReady,
-        qrCode: qrCodeData,
-        hasSession: fs.existsSync('./session_data'),
-        autoBotEnabled: autoBotEnabled,
-        stats: botStats,
-        message: 'WhatsApp Auto-Bot Service'
-    });
+app.get('/api/whatsapp/status', async (req, res) => {
+    try {
+        // Timeout de 5 segundos para verificar estado
+        const statusPromise = new Promise((resolve) => {
+            resolve({
+                status: connectionStatus,
+                isReady: isClientReady,
+                qrCode: qrCodeData,
+                hasSession: fs.existsSync('./session_data'),
+                autoBotEnabled: autoBotEnabled,
+                stats: botStats,
+                message: 'WhatsApp Auto-Bot Service'
+            });
+        });
+        
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Status check timeout')), 5000);
+        });
+        
+        const result = await Promise.race([statusPromise, timeoutPromise]);
+        res.json(result);
+        
+    } catch (error) {
+        console.error('Error checking WhatsApp status:', error.message);
+        
+        // Devolver estado básico aunque haya error
+        res.json({
+            status: 'error',
+            isReady: false,
+            qrCode: null,
+            hasSession: fs.existsSync('./session_data'),
+            autoBotEnabled: autoBotEnabled,
+            message: 'Error checking status - service may be restarting',
+            error: error.message
+        });
+    }
 });
 
 // Activar/Desactivar bot automático

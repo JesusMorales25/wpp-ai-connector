@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: wpp-ai-connector
+    env: docker
+    dockerfilePath: ./server/Dockerfile
+    startCommand: node whatsapp-qr-server.js
+    
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: USE_LOCAL_AUTH
+        value: "true"
+      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
+        value: "false"
+      - key: PUPPETEER_EXECUTABLE_PATH
+        value: /usr/bin/google-chrome-stable
+      - key: WWEBJS_CACHE_DIR
+        value: /tmp/.wwebjs_cache
+      - key: WWEBJS_USE_LOGGER
+        value: "false"

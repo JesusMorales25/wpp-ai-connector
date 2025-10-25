@@ -299,14 +299,25 @@ const smartLog = (type, message, data = null) => {
 
 // Función para limpiar recursos
 const cleanupClient = async () => {
+    // Limpiar heartbeat si existe
+    if (whatsappClient && whatsappClient.heartbeatInterval) {
+        clearInterval(whatsappClient.heartbeatInterval);
+        console.log('💓 Heartbeat detenido');
+    }
+    
     if (whatsappClient) {
         try {
+            // Remover todos los listeners para evitar memory leaks
+            whatsappClient.removeAllListeners();
+            console.log('📤 Listeners removidos');
+            
             // Verificar si el cliente está inicializado antes de destruir
             if (whatsappClient.pupPage) {
                 await whatsappClient.destroy();
+                console.log('🗑️ Página de Puppeteer destruida');
             }
         } catch (error) {
-            console.error('Error cleaning up client:', error);
+            console.error('⚠️ Error cleaning up client:', error.message);
         } finally {
             whatsappClient = null;
         }
@@ -413,13 +424,19 @@ const initializeWhatsAppClient = async () => {
             }),
             puppeteer: {
                 ...puppeteerConfig,
-                // CRÍTICO: Usar puppeteer-extra en lugar de puppeteer-core
                 product: 'chrome',
-                // Inyectar la instancia de puppeteer-extra con stealth
-                browserWSEndpoint: undefined // Asegurar que cree nueva instancia
+                browserWSEndpoint: undefined
             },
-            // QUITAR webVersionCache - puede causar problemas de desconexión
-            // WhatsApp Web se actualiza frecuentemente y versión hardcoded puede fallar
+            // Configuración adicional para estabilidad
+            proxyAuthentication: undefined,
+            take_screenshots: false,
+            bypassCSP: true,
+            // Aumentar timeout de inyección
+            socketConfig: { 
+                timeout: 60000,
+                retryCount: 5,
+                retryDelay: 2000
+            }
         });
 
         // Evento: Cargando sesión
@@ -469,6 +486,24 @@ const initializeWhatsAppClient = async () => {
             } else {
                 console.warn('⚠️ WARNING: La sesión NO se guardó en disco');
             }
+            
+            // HEARTBEAT: Mantener sesión activa enviando pings periódicos
+            if (whatsappClient.heartbeatInterval) clearInterval(whatsappClient.heartbeatInterval);
+            whatsappClient.heartbeatInterval = setInterval(async () => {
+                try {
+                    if (isClientReady && whatsappClient) {
+                        // Enviar comando silencioso para mantener página activa
+                        await whatsappClient.getState();
+                        // Silencioso - no loguear para no contaminar logs
+                    }
+                } catch (error) {
+                    // Ignorar errores de heartbeat silenciosamente
+                    if (isClientReady) {
+                        console.warn('⚠️ Heartbeat failed:', error.message.substring(0, 50));
+                    }
+                }
+            }, 30000); // Cada 30 segundos
+            console.log('💓 Heartbeat activado (cada 30s)');
         });
 
         // Evento: Cambio de estado (para debugging)
@@ -1350,11 +1385,19 @@ process.on('uncaughtException', (error) => {
 process.on('unhandledRejection', (reason, promise) => {
     const errorMessage = reason?.message || reason?.toString() || 'Unknown error';
     
-    // Ignorar errores de Puppeteer cuando el target está cerrado (normal durante reconexión)
-    if (errorMessage.includes('Target closed') || 
-        errorMessage.includes('Protocol error') ||
-        errorMessage.includes('Session closed')) {
-        console.log('⚠️ Ignorando error de Puppeteer durante reconexión:', errorMessage.substring(0, 100));
+    // Ignorar errores normales de Puppeteer
+    const ignoredErrors = [
+        'Target closed',
+        'Protocol error',
+        'Session closed',
+        'Execution context was destroyed',
+        'Navigation',
+        'Most likely the page has been closed',
+        'net::ERR_CONNECTION_REFUSED'
+    ];
+    
+    if (ignoredErrors.some(err => errorMessage.includes(err))) {
+        // Silencioso - estos errores son normales durante desconexión/reconexión
         return;
     }
     

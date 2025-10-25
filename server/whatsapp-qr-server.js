@@ -434,15 +434,24 @@ const initializeWhatsAppClient = async () => {
         }
 
         whatsappClient = new Client({
-            authStrategy: new LocalAuth({
-                dataPath: sessionPath,
-                clientId: 'wpp-bot-client'
-            }),
+            // DIAGNÓSTICO: Usar NoAuth temporalmente para aislar problema de LocalAuth/memory
+            // En Railway, LocalAuth podría estar causando memory leaks al guardar sesión en /tmp
+            authStrategy: process.env.USE_LOCAL_AUTH === 'true' 
+                ? new LocalAuth({
+                    dataPath: sessionPath,
+                    clientId: 'wpp-bot-client'
+                })
+                : undefined, // NoAuth - no guardar sesión en disco
+
             puppeteer: puppeteerConfig,
             // Reducir features innecesarias
             qrTimeoutMs: 0,  // QR sin timeout
             restartOnCrash: false // NO reiniciar automáticamente si falla
         });
+        
+        // Log de estrategia de autenticación
+        const authStrategy = process.env.USE_LOCAL_AUTH === 'true' ? 'LocalAuth (guardar sesión)' : 'NoAuth (sin guardar)';
+        console.log(`🔐 Auth Strategy: ${authStrategy}`);
 
         // Evento: Cargando sesión
         whatsappClient.on('loading_screen', (percent, message) => {

@@ -1,10 +1,10 @@
-// 🎭 STEALTH MODE: Puppeteer Extra con plugin anti-detección
+// 🎭 NOTA: Stealth plugin causaba fallos en inyección
+// Comentado temporalmente para usar puppeteer-core directo
+/*
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 puppeteer.use(StealthPlugin());
 
-// 🔧 MONKEY PATCH: Forzar whatsapp-web.js a usar puppeteer-extra
-// Esto reemplaza la importación interna de puppeteer-core
 const Module = require('module');
 const originalRequire = Module.prototype.require;
 Module.prototype.require = function(id) {
@@ -14,6 +14,7 @@ Module.prototype.require = function(id) {
     }
     return originalRequire.apply(this, arguments);
 };
+*/
 
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const express = require('express');
@@ -346,51 +347,24 @@ const initializeWhatsAppClient = async () => {
 
         console.log('🎭 Inicializando WhatsApp con STEALTH MODE...');
         
-        // Configuración específica para Railway/Docker con PUPPETEER-EXTRA STEALTH
+        // Configuración SIMPLIFICADA para Railway/Docker
         const puppeteerConfig = {
-            headless: 'new', // Nuevo headless mode - evita deprecation
-            timeout: 180000, // 3 minutos de timeout
+            headless: 'new',
+            timeout: 120000, // 2 minutos
             args: [
-                // Flags de seguridad (requeridos para Railway/Docker)
+                // Mínimos flags requeridos
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
-                
-                // CRÍTICO: NO incluir flags que el stealth plugin ya maneja
-                // El stealth plugin se encarga de:
-                // - AutomationControlled
-                // - navigator.webdriver
-                // - navigator.plugins
-                // - navigator.languages
-                // - WebGL vendor/renderer
-                // - User agent
-                
-                // Optimización de rendimiento
-                '--disable-accelerated-2d-canvas',
-                '--no-first-run',
-                '--no-zygote',
                 '--disable-gpu',
-                '--disable-software-rasterizer',
-                
-                // Reducir consumo de recursos
-                '--disable-background-timer-throttling',
-                '--disable-backgrounding-occluded-windows',
-                '--disable-renderer-backgrounding',
-                '--disable-background-networking',
-                '--disable-default-apps',
-                '--mute-audio',
-                
-                // Deshabilitar features no necesarias
-                '--disable-features=TranslateUI,AudioServiceOutOfProcess',
+                '--single-process',
                 '--disable-extensions',
-                '--disable-sync',
-                '--disable-component-update',
                 
-                // Optimización de memoria
-                '--memory-pressure-off',
-                '--max_old_space_size=4096',
+                // Keep-alive
+                '--no-first-run',
+                '--no-default-browser-check',
                 
-                // USER DATA DIR para persistencia de cookies y cache
+                // USER DATA DIR para persistencia
                 '--user-data-dir=/tmp/whatsapp-profile'
             ],
             handleSIGINT: false,
@@ -423,23 +397,12 @@ const initializeWhatsAppClient = async () => {
         whatsappClient = new Client({
             authStrategy: new LocalAuth({
                 dataPath: sessionPath,
-                clientId: 'wpp-bot-client' // ID único para la sesión
+                clientId: 'wpp-bot-client'
             }),
-            puppeteer: {
-                ...puppeteerConfig,
-                product: 'chrome',
-                browserWSEndpoint: undefined
-            },
-            // Configuración adicional para estabilidad
-            proxyAuthentication: undefined,
-            take_screenshots: false,
-            bypassCSP: true,
-            // Aumentar timeout de inyección
-            socketConfig: { 
-                timeout: 60000,
-                retryCount: 5,
-                retryDelay: 2000
-            }
+            puppeteer: puppeteerConfig,
+            // Reducir features innecesarias
+            qrTimeoutMs: 0,  // QR sin timeout
+            restartOnCrash: false // NO reiniciar automáticamente si falla
         });
 
         // Evento: Cargando sesión

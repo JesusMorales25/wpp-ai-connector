@@ -500,18 +500,24 @@ const initializeWhatsAppClient = async () => {
             whatsappClient.heartbeatInterval = setInterval(async () => {
                 try {
                     if (isClientReady && whatsappClient) {
-                        // Múltiples acciones para mantener sesión activa:
-                        // 1. Obtener estado
-                        await whatsappClient.getState();
-                        // 2. Obtener lista de chats (más agresivo)
-                        await whatsappClient.getChats().catch(() => {});
-                        // 3. Obtener info del cliente (valida conexión)
-                        await whatsappClient.getWWebVersion().catch(() => {});
+                        // Operaciones "reales" que mantienen la sesión viva:
+                        // 1. Sincronizar chats (requiere conexión real)
+                        await whatsappClient.syncChats().catch(() => {});
+                        
+                        // 2. Enviar un "ping" silencioso a través de evaluación de página
+                        // Esto mantiene la sesión activa sin conectar manualmente
+                        await whatsappClient.pupPage?.evaluate(() => {
+                            // Acceso mínimo a contenido que requiere estar logeado
+                            return window.localStorage.getItem('WASecretCode');
+                        }).catch(() => {});
+                        
+                        // 3. Obtener estado del cliente
+                        await whatsappClient.getState().catch(() => {});
                     }
                 } catch (error) {
                     // Ignorar errores de heartbeat silenciosamente
                     if (isClientReady) {
-                        console.warn('⚠️ Heartbeat failed:', error.message.substring(0, 50));
+                        console.warn('⚠️ Heartbeat warning:', error.message.substring(0, 40));
                     }
                 }
             }, 20000); // Cada 20 segundos (más agresivo para evitar timeout de 1 minuto)
@@ -560,6 +566,13 @@ const initializeWhatsAppClient = async () => {
             connectionStatus = 'disconnected';
             qrCodeData = null;
             readyFired = false; // Resetear flag para next conexión
+            
+            // CRÍTICO: Limpiar heartbeat para evitar que siga corriendo
+            if (whatsappClient.heartbeatInterval) {
+                clearInterval(whatsappClient.heartbeatInterval);
+                whatsappClient.heartbeatInterval = null;
+                console.log('🛑 Heartbeat detenido');
+            }
             
             // IMPORTANTE: No intentar reconectar si ya está en proceso
             if (initializationInProgress) {

@@ -326,37 +326,53 @@ const initializeWhatsAppClient = async () => {
 
         console.log('Initializing WhatsApp client for QR display...');
         
-        // Configuración específica para Railway/Docker
+        // Configuración específica para Railway/Docker con ANTI-DETECCIÓN
         const puppeteerConfig = {
             headless: true,
             timeout: 180000, // 3 minutos de timeout (aumentado para conexiones lentas)
             args: [
+                // Flags de seguridad (requeridos)
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
+                
+                // Anti-detección (críticos)
+                '--disable-blink-features=AutomationControlled',
+                '--disable-features=IsolateOrigins,site-per-process',
+                '--disable-site-isolation-trials',
+                
+                // Optimización de rendimiento
                 '--disable-accelerated-2d-canvas',
                 '--no-first-run',
                 '--no-zygote',
                 '--disable-gpu',
+                '--disable-software-rasterizer',
+                
+                // Reducir consumo de recursos
                 '--disable-background-timer-throttling',
                 '--disable-backgrounding-occluded-windows',
-                '--disable-features=VizDisplayCompositor,TranslateUI',
-                '--disable-web-security',
-                '--disable-extensions',
+                '--disable-renderer-backgrounding',
+                '--disable-background-networking',
                 '--disable-default-apps',
                 '--mute-audio',
+                
+                // Deshabilitar features no necesarias
+                '--disable-features=VizDisplayCompositor,TranslateUI,AudioServiceOutOfProcess',
+                '--disable-web-security',
+                '--disable-extensions',
                 '--disable-client-side-phishing-detection',
                 '--disable-sync',
-                '--disable-background-networking',
                 '--disable-component-update',
                 '--disable-domain-reliability',
-                '--disable-features=AudioServiceOutOfProcess',
-                '--run-all-compositor-stages-before-draw',
+                
+                // Optimización de memoria
                 '--disable-ipc-flooding-protection',
                 '--memory-pressure-off',
                 '--max_old_space_size=4096',
-                '--disable-software-rasterizer', // Mejora estabilidad
-                '--disable-blink-features=AutomationControlled' // Evita detección
+                '--run-all-compositor-stages-before-draw',
+                
+                // User agent más realista
+                '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             ],
             handleSIGINT: false,
             handleSIGTERM: false,
@@ -389,11 +405,8 @@ const initializeWhatsAppClient = async () => {
                 clientId: 'wpp-bot-client' // ID único para la sesión
             }),
             puppeteer: puppeteerConfig,
-            // Opciones adicionales para estabilidad
-            webVersionCache: {
-                type: 'remote',
-                remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html'
-            }
+            // QUITAR webVersionCache - puede causar problemas de desconexión
+            // WhatsApp Web se actualiza frecuentemente y versión hardcoded puede fallar
         });
 
         // Evento: Cargando sesión
@@ -461,6 +474,13 @@ const initializeWhatsAppClient = async () => {
             
             initializationInProgress = false;
             
+            // 🚫 RECONEXIÓN AUTOMÁTICA DESHABILITADA TEMPORALMENTE
+            // Evitar loops infinitos cuando WhatsApp Web detecta automatización
+            console.log('⛔ Reconexión automática DESHABILITADA (auth_failure)');
+            console.log('📝 Para reconectar manualmente, reinicia el servidor Railway');
+            console.log('💡 Revisa los logs para diagnosticar la causa del fallo de auth');
+            
+            /* RECONEXIÓN AUTOMÁTICA - DESHABILITADA
             // Esperar antes de limpiar sesión
             console.log('⏸️ Esperando 10 segundos antes de limpiar sesión...');
             
@@ -499,6 +519,7 @@ const initializeWhatsAppClient = async () => {
                     initializationInProgress = false;
                 }
             }, 10000); // 10 segundos de delay
+            */
         });
 
         // Evento: Cliente desconectado
@@ -524,6 +545,13 @@ const initializeWhatsAppClient = async () => {
             
             initializationInProgress = false;
             
+            // 🚫 RECONEXIÓN AUTOMÁTICA DESHABILITADA TEMPORALMENTE
+            // Evitar loops infinitos cuando WhatsApp Web detecta automatización
+            console.log('⛔ Reconexión automática DESHABILITADA');
+            console.log('📝 Para reconectar manualmente, reinicia el servidor Railway');
+            console.log('💡 Revisa los logs para diagnosticar la causa de la desconexión');
+            
+            /* RECONEXIÓN AUTOMÁTICA - DESHABILITADA
             // Intentar reconectar automáticamente después de 10 segundos
             console.log('🔄 Programando reconexión en 10 segundos...');
             setTimeout(async () => {
@@ -555,6 +583,7 @@ const initializeWhatsAppClient = async () => {
                     initializationInProgress = false;
                 }
             }, 10000); // 10 segundos de delay
+            */
         });
 
         // Evento: Mensaje recibido - FILTROS ULTRA-TEMPRANOS ANTI-SPAM (SILENCIOSOS)

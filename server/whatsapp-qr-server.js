@@ -500,18 +500,21 @@ const initializeWhatsAppClient = async () => {
             whatsappClient.heartbeatInterval = setInterval(async () => {
                 try {
                     if (isClientReady && whatsappClient) {
-                        // Operaciones "reales" que mantienen la sesión viva:
-                        // 1. Sincronizar chats (requiere conexión real)
-                        await whatsappClient.syncChats().catch(() => {});
+                        // Operaciones que mantienen la sesión viva:
+                        // 1. Obtener lista de chats (ESTA OPERACIÓN ES CRÍTICA)
+                        const chats = await whatsappClient.getChats().catch(() => []);
                         
-                        // 2. Enviar un "ping" silencioso a través de evaluación de página
-                        // Esto mantiene la sesión activa sin conectar manualmente
-                        await whatsappClient.pupPage?.evaluate(() => {
-                            // Acceso mínimo a contenido que requiere estar logeado
-                            return window.localStorage.getItem('WASecretCode');
-                        }).catch(() => {});
+                        // 2. Iterar sobre chats para forzar actividad
+                        if (chats && chats.length > 0) {
+                            // Acceder al primer chat para validar conexión
+                            const firstChat = chats[0];
+                            if (firstChat) {
+                                // Obtener mensajes del primer chat (mantiene conexión viva)
+                                await firstChat.getMessages({ limit: 1 }).catch(() => {});
+                            }
+                        }
                         
-                        // 3. Obtener estado del cliente
+                        // 3. Validación adicional - obtener estado
                         await whatsappClient.getState().catch(() => {});
                     }
                 } catch (error) {
@@ -520,7 +523,8 @@ const initializeWhatsAppClient = async () => {
                         console.warn('⚠️ Heartbeat warning:', error.message.substring(0, 40));
                     }
                 }
-            }, 20000); // Cada 20 segundos (más agresivo para evitar timeout de 1 minuto)
+            }, 10000); // Cada 10 segundos (MÁS AGRESIVO - WhatsApp desconecta a los 60s sin actividad)
+            console.log('💓 Heartbeat activado (cada 10s con getChats + getMessages)');
             console.log('💓 Heartbeat activado (cada 20s)');
         });
 

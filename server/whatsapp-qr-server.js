@@ -492,45 +492,10 @@ const initializeWhatsAppClient = async () => {
             
             initializationInProgress = false;
             
-            // 🎭 RECONEXIÓN AUTOMÁTICA HABILITADA (con STEALTH MODE)
-            // Esperar antes de limpiar sesión
-            console.log('⏸️ Esperando 10 segundos antes de limpiar sesión (con stealth plugin)...');
-            
-            setTimeout(async () => {
-                try {
-                    console.log('🗑️ Verificando si necesita limpiar sesión...');
-                    
-                    // Solo limpiar si realmente la sesión está corrupta
-                    const sessionPath = './session_data/session';
-                    if (fs.existsSync(sessionPath)) {
-                        console.log('⚠️ Sesión existe pero falló auth - puede estar corrupta');
-                        console.log('🔄 Generando nuevo QR (mantener sesión como backup)...');
-                    }
-                    
-                    // Destruir cliente de forma segura
-                    if (whatsappClient) {
-                        try {
-                            await whatsappClient.destroy();
-                            console.log('✅ Cliente destruido correctamente');
-                        } catch (destroyError) {
-                            console.error('⚠️ Error destruyendo cliente (ignorado):', destroyError.message);
-                        }
-                        
-                        // Limpiar referencia
-                        whatsappClient = null;
-                    }
-                    
-                    // Esperar 2 segundos más antes de reinicializar
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                    
-                    // Reiniciar (intentará usar sesión existente primero, con stealth activo)
-                    await initializeWhatsAppClient();
-                    
-                } catch (error) {
-                    console.error('❌ Error manejando auth_failure:', error.message);
-                    initializationInProgress = false;
-                }
-            }, 10000); // 10 segundos de delay
+            // RECONEXIÓN AUTOMÁTICA DESHABILITADA
+            console.log('⛔ RECONEXIÓN AUTOMÁTICA DESHABILITADA');
+            console.log('� Fallo de autenticación - necesita intervención manual');
+            console.log('📝 Para reconectar: reinicia Railway o usa POST /api/whatsapp/initialize');
         });
 
         // Evento: Cliente desconectado
@@ -556,37 +521,10 @@ const initializeWhatsAppClient = async () => {
             
             initializationInProgress = false;
             
-            // 🎭 RECONEXIÓN AUTOMÁTICA HABILITADA (con STEALTH MODE)
-            console.log('� Programando reconexión en 10 segundos (con stealth plugin)...');
-            setTimeout(async () => {
-                try {
-                    console.log('🔄 Iniciando reconexión automática...');
-                    
-                    // Destruir cliente de forma segura
-                    if (whatsappClient) {
-                        try {
-                            await whatsappClient.destroy();
-                            console.log('✅ Cliente destruido correctamente');
-                        } catch (destroyError) {
-                            console.error('⚠️ Error destruyendo cliente (ignorado):', destroyError.message);
-                        }
-                        
-                        // Limpiar referencia
-                        whatsappClient = null;
-                    }
-                    
-                    // Esperar 2 segundos más antes de reinicializar
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                    
-                    // Ahora sí reinicializar (con stealth plugin activo)
-                    await initializeWhatsAppClient();
-                    
-                } catch (error) {
-                    console.error('❌ Error en reconexión automática:', error.message);
-                    console.log('💡 Requiere reconexión manual - escanear QR nuevamente');
-                    initializationInProgress = false;
-                }
-            }, 10000); // 10 segundos de delay
+            // RECONEXIÓN AUTOMÁTICA DESHABILITADA
+            console.log('⛔ RECONEXIÓN AUTOMÁTICA DESHABILITADA');
+            console.log('� Razón de desconexión:', reason);
+            console.log('📝 Para reconectar: reinicia Railway o usa POST /api/whatsapp/initialize');
         });
 
         // Evento: Mensaje recibido - FILTROS ULTRA-TEMPRANOS ANTI-SPAM (SILENCIOSOS)

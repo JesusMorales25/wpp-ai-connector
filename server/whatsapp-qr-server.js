@@ -497,33 +497,61 @@ const initializeWhatsAppClient = async () => {
             
             // HEARTBEAT AGRESIVO: Mantener sesión activa
             if (whatsappClient.heartbeatInterval) clearInterval(whatsappClient.heartbeatInterval);
+            
+            let heartbeatCount = 0;
             whatsappClient.heartbeatInterval = setInterval(async () => {
+                heartbeatCount++;
                 try {
                     if (isClientReady && whatsappClient) {
-                        // Operaciones que mantienen la sesión viva:
-                        // 1. Obtener lista de chats (ESTA OPERACIÓN ES CRÍTICA)
-                        const chats = await whatsappClient.getChats().catch(() => []);
-                        
-                        // 2. Iterar sobre chats para forzar actividad
-                        if (chats && chats.length > 0) {
-                            // Acceder al primer chat para validar conexión
-                            const firstChat = chats[0];
-                            if (firstChat) {
-                                // Obtener mensajes del primer chat (mantiene conexión viva)
-                                await firstChat.getMessages({ limit: 1 }).catch(() => {});
-                            }
+                        // CRÍTICO: Ejecutar código JavaScript en página para mantener sesión
+                        // Esto dispara eventos que WhatsApp considera "actividad de usuario"
+                        if (whatsappClient.pupPage) {
+                            await whatsappClient.pupPage.evaluate(() => {
+                                // Disparar eventos que simulan actividad del usuario
+                                document.dispatchEvent(new Event('mousemove'));
+                                document.dispatchEvent(new Event('click'));
+                                // Acceder a API de WhatsApp Web interno
+                                if (window.Store && window.Store.Chat) {
+                                    try {
+                                        // Obtener chat actual (esto valida conexión)
+                                        const chats = window.Store.Chat.getModelsArray?.();
+                                        return chats ? chats.length : 0;
+                                    } catch (e) {
+                                        return -1;
+                                    }
+                                }
+                                return 0;
+                            }).catch(() => {});
                         }
                         
-                        // 3. Validación adicional - obtener estado
-                        await whatsappClient.getState().catch(() => {});
+                        // Log cada heartbeat
+                        if (heartbeatCount % 6 === 0) { // Log cada 60s (6 x 10s)
+                            console.log(`💓 Heartbeat #${heartbeatCount}: Sesión activa (60s)`);
+                        }
+                        
+                        // Operaciones adicionales de seguridad:
+                        // 1. Obtener lista de chats
+                        const chats = await whatsappClient.getChats().catch(() => []);
+                        
+                        // 2. Si hay chats, acceder al primero
+                        if (chats && chats.length > 0) {
+                            try {
+                                const firstChat = chats[0];
+                                if (firstChat) {
+                                    await firstChat.getMessages({ limit: 1 }).catch(() => {});
+                                }
+                            } catch (e) {
+                                // Ignorar
+                            }
+                        }
                     }
                 } catch (error) {
                     // Ignorar errores de heartbeat silenciosamente
                     if (isClientReady) {
-                        console.warn('⚠️ Heartbeat warning:', error.message.substring(0, 40));
+                        console.warn('⚠️ Heartbeat #' + heartbeatCount + ' warning:', error.message.substring(0, 40));
                     }
                 }
-            }, 10000); // Cada 10 segundos (MÁS AGRESIVO - WhatsApp desconecta a los 60s sin actividad)
+            }, 10000); // Cada 10 segundos
             console.log('💓 Heartbeat activado (cada 10s con getChats + getMessages)');
             console.log('💓 Heartbeat activado (cada 20s)');
         });

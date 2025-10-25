@@ -358,7 +358,7 @@ const initializeWhatsAppClient = async () => {
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
                 '--disable-gpu',
-                '--single-process',
+                // NO usar --single-process (causa memory leaks)
                 '--disable-extensions',
                 
                 // Keep-alive
@@ -366,11 +366,32 @@ const initializeWhatsAppClient = async () => {
                 '--no-default-browser-check',
                 
                 // USER DATA DIR para persistencia
-                '--user-data-dir=/tmp/whatsapp-profile'
+                '--user-data-dir=/tmp/whatsapp-profile',
+                
+                // CRÍTICO para contenedores: prevenir crashes
+                '--disable-background-networking',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-breakpad',
+                '--disable-client-side-phishing-detection',
+                '--disable-component-extensions-with-background-pages',
+                '--disable-component-extensions',
+                '--disable-default-apps',
+                '--disable-hang-monitor',
+                '--disable-popup-blocking',
+                '--disable-prompt-on-repost',
+                '--disable-sync',
+                '--metrics-recording-only',
+                '--mute-audio',
+                '--no-default-browser-check',
+                '--no-service-autorun',
+                '--password-store=basic',
+                '--use-gl=swiftshader'
             ],
             handleSIGINT: false,
             handleSIGTERM: false,
-            handleSIGHUP: false
+            handleSIGHUP: false,
+            waitForInitialPage: false  // No esperar a que la página se cargue antes de devolver
         };
 
         // Auto-detectar Chrome/Chromium en Railway/Docker
@@ -826,7 +847,19 @@ const initializeWhatsAppClient = async () => {
 
         // Inicializar cliente
         console.log('Starting WhatsApp client initialization...');
-        await whatsappClient.initialize();
+        console.log('📡 Iniciando CDP connection a Chrome...');
+        try {
+            await whatsappClient.initialize();
+            console.log('✅ WhatsApp client inicializado correctamente');
+        } catch (initError) {
+            console.error('❌ Error en initialize():', initError.message);
+            // Buscar la causa raíz
+            if (initError.message.includes('Session closed')) {
+                console.error('   → Chrome cerró la sesión CDP prematuramente');
+                console.error('   → Posible causa: memory leak, permisos insuficientes, o timeout');
+            }
+            throw initError;
+        }
         
     } catch (error) {
         console.error('Error initializing WhatsApp client:', error);

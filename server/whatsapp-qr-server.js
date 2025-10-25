@@ -253,38 +253,30 @@ setInterval(async () => {
     }
 }, 30 * 60 * 1000); // Cada 30 minutos
 
-// WATCHDOG: Monitorear y reiniciar conexión si se queda colgada
-let lastHealthCheck = Date.now();
-setInterval(async () => {
-    // Si el cliente dice estar listo pero no responde, reiniciar
-    if (isClientReady && whatsappClient) {
-        try {
-            // Intentar verificar estado (con timeout)
-            const healthCheck = Promise.race([
-                whatsappClient.getState().then(() => true),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Health check timeout')), 10000))
-            ]);
-            
-            await healthCheck;
-            lastHealthCheck = Date.now();
-            
-        } catch (error) {
-            console.error('⚠️ Watchdog: Cliente no responde, reiniciando...', error.message);
-            
-            // Marcar como desconectado
-            isClientReady = false;
-            connectionStatus = 'reconnecting';
-            
-            // Reiniciar cliente
-            try {
-                await whatsappClient.destroy();
-                await initializeWhatsAppClient();
-            } catch (restartError) {
-                console.error('❌ Watchdog: Error reiniciando cliente:', restartError.message);
-            }
-        }
-    }
-}, 60000); // Cada 1 minuto
+// WATCHDOG DESHABILITADO - Causa múltiples instancias concurrentes
+// let lastHealthCheck = Date.now();
+// setInterval(async () => {
+//     if (isClientReady && whatsappClient) {
+//         try {
+//             const healthCheck = Promise.race([
+//                 whatsappClient.getState().then(() => true),
+//                 new Promise((_, reject) => setTimeout(() => reject(new Error('Health check timeout')), 10000))
+//             ]);
+//             await healthCheck;
+//             lastHealthCheck = Date.now();
+//         } catch (error) {
+//             console.error('⚠️ Watchdog: Cliente no responde, reiniciando...', error.message);
+//             isClientReady = false;
+//             connectionStatus = 'reconnecting';
+//             try {
+//                 await whatsappClient.destroy();
+//                 await initializeWhatsAppClient();
+//             } catch (restartError) {
+//                 console.error('❌ Watchdog: Error reiniciando cliente:', restartError.message);
+//             }
+//         }
+//     }
+// }, 60000);
 
 // SISTEMA DE LOGS ULTRA-SILENCIOSO
 const LOG_CONFIG = {
@@ -345,8 +337,8 @@ const initializeWhatsAppClient = async () => {
         
         // Configuración específica para Railway/Docker con PUPPETEER-EXTRA STEALTH
         const puppeteerConfig = {
-            headless: true,
-            timeout: 180000, // 3 minutos de timeout (aumentado para conexiones lentas)
+            headless: 'new', // Nuevo headless mode - evita deprecation
+            timeout: 180000, // 3 minutos de timeout
             args: [
                 // Flags de seguridad (requeridos para Railway/Docker)
                 '--no-sandbox',

@@ -368,25 +368,30 @@ const initializeWhatsAppClient = async () => {
                 // USER DATA DIR para persistencia
                 '--user-data-dir=/tmp/whatsapp-profile',
                 
-                // CRÍTICO para contenedores: prevenir crashes
+                // CRÍTICO PARA RAILWAY: Reducir memory usage
+                '--disable-default-apps',
+                '--disable-preconnect',
                 '--disable-background-networking',
-                '--disable-background-timer-throttling',
                 '--disable-backgrounding-occluded-windows',
                 '--disable-breakpad',
                 '--disable-client-side-phishing-detection',
-                '--disable-component-extensions-with-background-pages',
-                '--disable-component-extensions',
                 '--disable-default-apps',
                 '--disable-hang-monitor',
                 '--disable-popup-blocking',
                 '--disable-prompt-on-repost',
                 '--disable-sync',
+                '--enable-automation',
                 '--metrics-recording-only',
                 '--mute-audio',
                 '--no-default-browser-check',
                 '--no-service-autorun',
                 '--password-store=basic',
-                '--use-gl=swiftshader'
+                '--use-gl=swiftshader',
+                
+                // MEMORY MANAGEMENT PARA RAILWAY (512MB limit):
+                '--renderer-process-limit=1',  // Solo 1 proceso renderer
+                '--v8-code-cache-strategy=aggressive',
+                '--max-old-space-size=256'  // Limitar V8 heap size
             ],
             handleSIGINT: false,
             handleSIGTERM: false,
@@ -484,6 +489,14 @@ const initializeWhatsAppClient = async () => {
             qrCodeData = null;
             initializationInProgress = false;
             
+            // LOGGING DE MEMORY PARA DIAGNOSTICAR PROBLEMA EN RAILWAY
+            const memUsage = process.memoryUsage();
+            console.log('📊 Memory Usage:', {
+                heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024) + ' MB',
+                heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024) + ' MB',
+                rss: Math.round(memUsage.rss / 1024 / 1024) + ' MB'
+            });
+            
             // Marcar el momento cuando el bot está listo
             botReadyTime = new Date();
             console.log('🤖 Bot listo para procesar mensajes desde:', botReadyTime.toISOString());
@@ -526,7 +539,8 @@ const initializeWhatsAppClient = async () => {
                         
                         // Log cada heartbeat
                         if (heartbeatCount % 6 === 0) { // Log cada 60s (6 x 10s)
-                            console.log(`💓 Heartbeat #${heartbeatCount}: Sesión activa (60s)`);
+                            const mem = process.memoryUsage();
+                            console.log(`💓 Heartbeat #${heartbeatCount}: Sesión activa | Memory: ${Math.round(mem.heapUsed / 1024 / 1024)}MB / ${Math.round(mem.heapTotal / 1024 / 1024)}MB`);
                         }
                         
                         // Operaciones adicionales de seguridad:

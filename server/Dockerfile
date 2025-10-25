@@ -21,21 +21,21 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Crear directorio de trabajo
-WORKDIR /app
+WORKDIR /app/server
 
 # Copiar package.json primero para aprovechar cache de Docker
-COPY package*.json ./
+COPY server/package*.json ./
 
 # Instalar solo las dependencias necesarias más rápido
 RUN npm ci --only=production --silent --no-audit --no-fund \
     && npm cache clean --force \
     && rm -rf /tmp/.npm
 
-# Copiar el resto del código
-COPY . .
+# Copiar el resto del código del servidor
+COPY server/ ./
 
 # Exponer puerto
-EXPOSE 8080
+EXPOSE 3001
 
 # Comando para ejecutar
 CMD ["node", "whatsapp-qr-server.js"]

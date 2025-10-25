@@ -351,7 +351,7 @@ const initializeWhatsAppClient = async () => {
         // Configuración SIMPLIFICADA para Railway/Docker
         const puppeteerConfig = {
             headless: 'new',
-            timeout: 120000, // 2 minutos
+            timeout: 180000, // 3 minutos (Railway puede ser lento descargando Chromium)
             args: [
                 // Mínimos flags requeridos
                 '--no-sandbox',
@@ -373,9 +373,21 @@ const initializeWhatsAppClient = async () => {
             handleSIGHUP: false
         };
 
-        // En Railway/Docker, usar Chrome del sistema
-        if (process.env.PUPPETEER_EXECUTABLE_PATH) {
-            puppeteerConfig.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+        // Auto-detectar Chrome/Chromium en Railway/Docker
+        const chromePathCandidates = [
+            process.env.PUPPETEER_EXECUTABLE_PATH,  // Variable de entorno explícita
+            '/usr/bin/google-chrome-stable',         // Google Chrome (Debian)
+            '/usr/bin/chromium',                     // Chromium (Debian)
+            '/usr/bin/chromium-browser',             // Chromium alt
+            '/snap/bin/chromium'                     // Snap package
+        ].filter(p => p && fs.existsSync(p));
+
+        if (chromePathCandidates.length > 0) {
+            puppeteerConfig.executablePath = chromePathCandidates[0];
+            console.log(`✅ Chrome detectado en: ${puppeteerConfig.executablePath}`);
+        } else {
+            console.log('⚠️ No Chrome encontrado - Puppeteer descargará Chromium');
+            // Puppeteer descargará automáticamente Chromium
         }
         
         console.log('✅ Puppeteer iniciado con CONFIG MINIMALISTA (Vanilla Puppeteer-Core)');

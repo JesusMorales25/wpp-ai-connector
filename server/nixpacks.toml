@@ -1,7 +1,5 @@
 [phases.setup]
 aptPkgs = [
-  "chromium",
-  "chromium-sandbox",
   "fonts-liberation",
   "libappindicator3-1",
   "libasound2",
@@ -12,7 +10,9 @@ aptPkgs = [
   "libxrandr2",
   "libgbm1",
   "libxss1",
-  "libnss3"
+  "libnss3",
+  "libxkbcommon0",
+  "libpangoxft-1.0-0"
 ]
 
 [phases.build]
@@ -23,4 +23,5 @@ cmd = "npm start"
 
 [variables]
 PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "false"
-PUPPETEER_EXECUTABLE_PATH = "/usr/bin/chromium"
+PUPPETEER_EXECUTABLE_PATH = ""
+NODE_ENV = "production"

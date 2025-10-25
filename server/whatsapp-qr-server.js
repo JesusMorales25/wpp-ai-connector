@@ -452,10 +452,16 @@ const initializeWhatsAppClient = async () => {
             
             connectionStatus = 'auth_failed';
             qrCodeData = null;
+            
+            // IMPORTANTE: No intentar reconectar si ya está en proceso
+            if (initializationInProgress) {
+                console.log('⚠️ Ya hay una inicialización en curso, evitando reconexión duplicada');
+                return;
+            }
+            
             initializationInProgress = false;
             
-            // IMPORTANTE: NO destruir la sesión inmediatamente
-            // Puede ser un error temporal de red
+            // Esperar antes de limpiar sesión
             console.log('⏸️ Esperando 10 segundos antes de limpiar sesión...');
             
             setTimeout(async () => {
@@ -469,14 +475,28 @@ const initializeWhatsAppClient = async () => {
                         console.log('🔄 Generando nuevo QR (mantener sesión como backup)...');
                     }
                     
-                    // Destruir cliente (pero mantener archivos de sesión)
-                    await whatsappClient.destroy();
+                    // Destruir cliente de forma segura
+                    if (whatsappClient) {
+                        try {
+                            await whatsappClient.destroy();
+                            console.log('✅ Cliente destruido correctamente');
+                        } catch (destroyError) {
+                            console.error('⚠️ Error destruyendo cliente (ignorado):', destroyError.message);
+                        }
+                        
+                        // Limpiar referencia
+                        whatsappClient = null;
+                    }
+                    
+                    // Esperar 2 segundos más antes de reinicializar
+                    await new Promise(resolve => setTimeout(resolve, 2000));
                     
                     // Reiniciar (intentará usar sesión existente primero)
                     await initializeWhatsAppClient();
                     
                 } catch (error) {
                     console.error('❌ Error manejando auth_failure:', error.message);
+                    initializationInProgress = false;
                 }
             }, 10000); // 10 segundos de delay
         });
@@ -495,20 +515,46 @@ const initializeWhatsAppClient = async () => {
             isClientReady = false;
             connectionStatus = 'disconnected';
             qrCodeData = null;
+            
+            // IMPORTANTE: No intentar reconectar si ya está en proceso
+            if (initializationInProgress) {
+                console.log('⚠️ Ya hay una inicialización en curso, evitando reconexión duplicada');
+                return;
+            }
+            
             initializationInProgress = false;
             
-            // Intentar reconectar automáticamente después de 5 segundos
-            console.log('🔄 Intentando reconectar en 5 segundos...');
+            // Intentar reconectar automáticamente después de 10 segundos
+            console.log('🔄 Programando reconexión en 10 segundos...');
             setTimeout(async () => {
                 try {
                     console.log('🔄 Iniciando reconexión automática...');
-                    await whatsappClient.destroy();
+                    
+                    // Destruir cliente de forma segura
+                    if (whatsappClient) {
+                        try {
+                            await whatsappClient.destroy();
+                            console.log('✅ Cliente destruido correctamente');
+                        } catch (destroyError) {
+                            console.error('⚠️ Error destruyendo cliente (ignorado):', destroyError.message);
+                        }
+                        
+                        // Limpiar referencia
+                        whatsappClient = null;
+                    }
+                    
+                    // Esperar 2 segundos más antes de reinicializar
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    
+                    // Ahora sí reinicializar
                     await initializeWhatsAppClient();
+                    
                 } catch (error) {
                     console.error('❌ Error en reconexión automática:', error.message);
                     console.log('💡 Requiere reconexión manual - escanear QR nuevamente');
+                    initializationInProgress = false;
                 }
-            }, 5000);
+            }, 10000); // 10 segundos de delay
         });
 
         // Evento: Mensaje recibido - FILTROS ULTRA-TEMPRANOS ANTI-SPAM (SILENCIOSOS)
@@ -764,15 +810,20 @@ const initializeWhatsAppClient = async () => {
 
         // Manejo de errores
         whatsappClient.on('error', (error) => {
-            console.error('WhatsApp Client Error:', error.message);
+            console.error('⚠️ WhatsApp Client Error:', error.message);
             
             if (error.message.includes('Target closed') || 
                 error.message.includes('Protocol error') ||
-                error.message.includes('Session closed')) {
-                console.log('Session lost, cleaning up...');
-                setTimeout(async () => {
-                    await cleanupClient();
-                }, 3000);
+                error.message.includes('Session closed') ||
+                error.message.includes('Navigation failed')) {
+                console.log('💥 Sesión perdida o navegador cerrado');
+                isClientReady = false;
+                connectionStatus = 'error';
+                
+                // NO intentar reconectar aquí, el evento 'disconnected' lo manejará
+                console.log('⏳ El evento "disconnected" manejará la reconexión');
+            } else {
+                console.error('❌ Error no manejado:', error);
             }
         });
 
@@ -1298,5 +1349,17 @@ process.on('uncaughtException', (error) => {
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    const errorMessage = reason?.message || reason?.toString() || 'Unknown error';
+    
+    // Ignorar errores de Puppeteer cuando el target está cerrado (normal durante reconexión)
+    if (errorMessage.includes('Target closed') || 
+        errorMessage.includes('Protocol error') ||
+        errorMessage.includes('Session closed')) {
+        console.log('⚠️ Ignorando error de Puppeteer durante reconexión:', errorMessage.substring(0, 100));
+        return;
+    }
+    
+    // Otros errores sí se loggean
+    console.error('❌ Unhandled Rejection at:', promise);
+    console.error('📋 Reason:', errorMessage);
 });

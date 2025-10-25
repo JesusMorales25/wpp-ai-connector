@@ -1,0 +1,26 @@
+[phases.setup]
+aptPkgs = [
+  "chromium",
+  "chromium-sandbox",
+  "fonts-liberation",
+  "libappindicator3-1",
+  "libasound2",
+  "libatk-bridge2.0-0",
+  "libdrm2",
+  "libxcomposite1",
+  "libxdamage1",
+  "libxrandr2",
+  "libgbm1",
+  "libxss1",
+  "libnss3"
+]
+
+[phases.build]
+cmds = ["npm install"]
+
+[start]
+cmd = "npm start"
+
+[variables]
+PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "false"
+PUPPETEER_EXECUTABLE_PATH = "/usr/bin/chromium"

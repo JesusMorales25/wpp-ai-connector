@@ -4,5 +4,11 @@
   "startCommand": "npm start",
   "healthcheckPath": "/health",
   "port": 3001,
-  "environment": "node"
+  "environment": "node",
+  "volumes": [
+    {
+      "name": "whatsapp-session",
+      "mountPath": "/app/session_data"
+    }
+  ]
 }

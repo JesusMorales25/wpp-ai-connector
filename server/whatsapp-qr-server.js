@@ -479,6 +479,11 @@ const initializeWhatsAppClient = async () => {
             }
         });
 
+        // Evento: Cambio de estado (para debugging)
+        whatsappClient.on('change_state', (state) => {
+            console.log('🔄 Cambio de estado WhatsApp:', state);
+        });
+
         // Evento: Fallo de autenticación
         whatsappClient.on('auth_failure', async (msg) => {
             console.error('❌ FALLO DE AUTENTICACIÓN:', msg);

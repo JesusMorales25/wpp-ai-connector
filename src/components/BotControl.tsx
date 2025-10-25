@@ -102,22 +102,22 @@ const BotControl = ({ isConnected }: BotControlProps) => {
   }, [isConnected]);
 
   return (
-    <Card className="p-6 shadow-elegant">
-      <div className="space-y-6">
-        <div className="flex items-center gap-3">
-          <Bot className="w-6 h-6 text-primary" />
-          <h2 className="text-xl font-bold text-foreground">
+    <Card className="p-4 sm:p-6 shadow-elegant">
+      <div className="space-y-4 sm:space-y-6">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Bot className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
+          <h2 className="text-lg sm:text-xl font-bold text-foreground">
             Control del Bot Automático
           </h2>
         </div>
 
         {/* Estado del bot */}
-        <div className="flex items-center justify-between p-4 bg-secondary rounded-lg">
-          <div className="flex items-center gap-3">
-            <div className={`w-3 h-3 rounded-full ${autoBotEnabled ? 'bg-green-500' : 'bg-gray-400'}`}></div>
-            <div>
-              <p className="font-semibold">Bot Automático</p>
-              <p className="text-sm text-muted-foreground">
+        <div className="flex items-center justify-between p-3 sm:p-4 bg-secondary rounded-lg">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+            <div className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full flex-shrink-0 ${autoBotEnabled ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+            <div className="min-w-0">
+              <p className="font-semibold text-sm sm:text-base truncate">Bot Automático</p>
+              <p className="text-xs sm:text-sm text-muted-foreground truncate">
                 {autoBotEnabled ? 'Respondiendo mensajes automáticamente' : 'Pausado'}
               </p>
             </div>
@@ -126,6 +126,7 @@ const BotControl = ({ isConnected }: BotControlProps) => {
             checked={autoBotEnabled}
             onCheckedChange={toggleAutoBot}
             disabled={!isConnected || isLoading}
+            className="flex-shrink-0"
           />
         </div>
 

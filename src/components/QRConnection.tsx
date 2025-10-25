@@ -103,34 +103,34 @@ const QRConnection = ({ onConnectionChange }: QRConnectionProps) => {
   };
 
   return (
-    <Card className="p-8 shadow-elegant">
-      <div className="flex flex-col items-center gap-6">
-        <div className="flex items-center gap-3">
-          <QrCode className="w-8 h-8 text-primary" />
-          <h2 className="text-2xl font-bold text-foreground">
+    <Card className="p-4 sm:p-6 md:p-8 shadow-elegant">
+      <div className="flex flex-col items-center gap-4 sm:gap-6">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <QrCode className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
+          <h2 className="text-xl sm:text-2xl font-bold text-foreground text-center">
             Conexión WhatsApp Web
           </h2>
         </div>
 
         {/* Estado de conexión */}
-        <div className="text-center">
-          <p className={`text-lg font-semibold ${getStatusColor()}`}>
+        <div className="text-center px-2 sm:px-4 w-full">
+          <p className={`text-base sm:text-lg font-semibold ${getStatusColor()}`}>
             {getStatusText()}
           </p>
           {clientInfo && (
-            <p className="text-sm text-muted-foreground mt-1">
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1 break-words">
               Conectado como: {clientInfo.pushname} ({clientInfo.phone})
             </p>
           )}
           {hasSession && status.status === 'disconnected' && (
-            <p className="text-sm text-blue-600 mt-1">
+            <p className="text-xs sm:text-sm text-blue-600 mt-1">
               Sesión guardada disponible
             </p>
           )}
         </div>
 
         {/* Área del QR o estado */}
-        <div className="relative w-[300px] h-[300px] rounded-xl overflow-hidden bg-secondary flex items-center justify-center">
+        <div className="relative w-full max-w-[280px] sm:max-w-[300px] aspect-square rounded-xl overflow-hidden bg-secondary flex items-center justify-center">
           {isLoading ? (
             <div className="flex flex-col items-center gap-4">
               <Loader2 className="w-12 h-12 text-primary animate-spin" />
@@ -189,12 +189,12 @@ const QRConnection = ({ onConnectionChange }: QRConnectionProps) => {
         )}
 
         {/* Botones de control */}
-        <div className="flex gap-3 flex-wrap justify-center">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto px-4 sm:px-0">
           {status.status === 'disconnected' && (
             <Button 
               onClick={handleInitialize}
               disabled={isLoading}
-              className="bg-green-600 hover:bg-green-700 text-white"
+              className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto"
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
@@ -210,7 +210,7 @@ const QRConnection = ({ onConnectionChange }: QRConnectionProps) => {
               onClick={handleInitialize}
               disabled={isLoading}
               variant="outline"
-              className="text-blue-600 border-blue-600 hover:bg-blue-50"
+              className="text-blue-600 border-blue-600 hover:bg-blue-50 w-full sm:w-auto"
             >
               <RefreshCw className="w-4 h-4 mr-2" />
               Regenerar QR
@@ -222,6 +222,7 @@ const QRConnection = ({ onConnectionChange }: QRConnectionProps) => {
               onClick={handleDisconnect}
               disabled={isLoading}
               variant="destructive"
+              className="w-full sm:w-auto"
             >
               Desconectar
             </Button>
@@ -232,7 +233,7 @@ const QRConnection = ({ onConnectionChange }: QRConnectionProps) => {
               onClick={handleClearSession}
               disabled={isLoading}
               variant="outline"
-              className="text-orange-600 border-orange-600 hover:bg-orange-50"
+              className="text-orange-600 border-orange-600 hover:bg-orange-50 w-full sm:w-auto"
             >
               <Trash2 className="w-4 h-4 mr-2" />
               Limpiar Sesión

@@ -112,19 +112,19 @@ const MetricasPage: React.FC = () => {
   }));
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Métricas del Período</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold">Métricas del Período</h1>
+          <p className="text-sm text-muted-foreground">
             Análisis completo de actividad para los últimos {periodo} días
           </p>
         </div>
         
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4">
           <Select value={periodo} onValueChange={setPeriodo}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue placeholder="Seleccionar período" />
             </SelectTrigger>
             <SelectContent>
@@ -141,6 +141,7 @@ const MetricasPage: React.FC = () => {
             onClick={fetchMetricas} 
             disabled={loading}
             variant="outline"
+            className="w-full sm:w-auto"
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Actualizar
@@ -156,14 +157,14 @@ const MetricasPage: React.FC = () => {
       ) : metricas ? (
         <>
           {/* Métricas principales */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Mensajes</CardTitle>
                 <MessageSquare className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{metricas.totales.total_mensajes.toLocaleString()}</div>
+                <div className="text-xl sm:text-2xl font-bold">{metricas.totales.total_mensajes.toLocaleString()}</div>
                 <p className="text-xs text-muted-foreground">
                   Bot: {metricas.totales.total_mensajes_bot} | 
                   Usuario: {metricas.totales.total_mensajes_usuario}
@@ -177,7 +178,7 @@ const MetricasPage: React.FC = () => {
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{metricas.totales.contactos_activos.toLocaleString()}</div>
+                <div className="text-xl sm:text-2xl font-bold">{metricas.totales.contactos_activos.toLocaleString()}</div>
                 <p className="text-xs text-muted-foreground">
                   Total conversaciones: {metricas.totales.total_conversaciones}
                 </p>
@@ -190,7 +191,7 @@ const MetricasPage: React.FC = () => {
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
+                <div className="text-xl sm:text-2xl font-bold">
                   {(metricas.totales.tasa_respuesta * 100).toFixed(1)}%
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -201,18 +202,22 @@ const MetricasPage: React.FC = () => {
           </div>
 
           {/* Gráficos */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
             {/* Gráfico de mensajes por día */}
             <Card>
               <CardHeader>
-                <CardTitle>Mensajes por Día</CardTitle>
+                <CardTitle className="text-base sm:text-lg">Mensajes por Día</CardTitle>
               </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
+              <CardContent className="px-2 sm:px-6">
+                <ResponsiveContainer width="100%" height={250} className="sm:h-[300px]">
                   <AreaChart data={mensajesPorDiaChart}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="fechaFormateada" />
-                    <YAxis />
+                    <XAxis 
+                      dataKey="fechaFormateada" 
+                      tick={{ fontSize: 12 }}
+                      interval="preserveStartEnd"
+                    />
+                    <YAxis tick={{ fontSize: 12 }} />
                     <Tooltip 
                       labelFormatter={(label) => `Fecha: ${label}`}
                       formatter={(value) => [value, 'Mensajes']}
@@ -232,17 +237,17 @@ const MetricasPage: React.FC = () => {
             {/* Distribución por categorías */}
             <Card>
               <CardHeader>
-                <CardTitle>Contactos por Categoría</CardTitle>
+                <CardTitle className="text-base sm:text-lg">Contactos por Categoría</CardTitle>
               </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
+              <CardContent className="px-2 sm:px-6">
+                <ResponsiveContainer width="100%" height={250} className="sm:h-[300px]">
                   <PieChart>
                     <Pie
                       data={categoriasChart}
                       cx="50%"
                       cy="50%"
-                      innerRadius={60}
-                      outerRadius={120}
+                      innerRadius={50}
+                      outerRadius={90}
                       paddingAngle={2}
                       dataKey="cantidad"
                       nameKey="name" // Especificar el campo para los nombres
@@ -256,6 +261,7 @@ const MetricasPage: React.FC = () => {
                       labelFormatter={(label) => `Categoría: ${label}`}
                     />
                     <Legend 
+                      wrapperStyle={{ fontSize: '12px' }}
                       formatter={(value, entry) => (
                         <span style={{ color: entry.color }}>
                           {value}
@@ -271,17 +277,17 @@ const MetricasPage: React.FC = () => {
           {/* Tabla de contactos recientes */}
           <Card>
             <CardHeader>
-              <CardTitle>Contactos Recientes</CardTitle>
-              <p className="text-sm text-muted-foreground">
+              <CardTitle className="text-base sm:text-lg">Contactos Recientes</CardTitle>
+              <p className="text-xs sm:text-sm text-muted-foreground">
                 Últimos {metricas.contactos_recientes.length} contactos con actividad
               </p>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
+            <CardContent className="px-2 sm:px-6">
+              <div className="space-y-3 sm:space-y-4">
                 {metricas.contactos_recientes.slice(0, 8).map((contacto) => (
-                  <div key={contacto.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center space-x-4">
-                      <Avatar>
+                  <div key={contacto.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 border rounded-lg gap-3">
+                    <div className="flex items-center space-x-3 sm:space-x-4 min-w-0 flex-1">
+                      <Avatar className="flex-shrink-0">
                         <AvatarFallback>
                           {contacto.nombre ? 
                             contacto.nombre.split(' ').map(n => n[0]).join('').toUpperCase() : 
@@ -289,25 +295,25 @@ const MetricasPage: React.FC = () => {
                           }
                         </AvatarFallback>
                       </Avatar>
-                      <div>
-                        <div className="font-medium">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-sm sm:text-base truncate">
                           {contacto.nombre || 'Usuario sin nombre'}
                         </div>
-                        <div className="text-sm text-muted-foreground flex items-center gap-2">
-                          <Phone className="h-3 w-3" />
-                          {contacto.numero_usuario}
+                        <div className="text-xs sm:text-sm text-muted-foreground flex items-center gap-1 sm:gap-2">
+                          <Phone className="h-3 w-3 flex-shrink-0" />
+                          <span className="truncate">{contacto.numero_usuario}</span>
                         </div>
                         {contacto.correo && (
-                          <div className="text-sm text-muted-foreground">
+                          <div className="text-xs sm:text-sm text-muted-foreground truncate">
                             {contacto.correo}
                           </div>
                         )}
                       </div>
                     </div>
                     
-                    <div className="flex items-center space-x-4">
-                      <div className="text-right">
-                        <div className="text-sm font-medium">
+                    <div className="flex items-center justify-between sm:justify-end sm:space-x-4">
+                      <div className="text-left sm:text-right">
+                        <div className="text-xs sm:text-sm font-medium">
                           {contacto.total_conversaciones} conversación{contacto.total_conversaciones !== 1 ? 'es' : ''}
                         </div>
                         <div className="text-xs text-muted-foreground flex items-center">

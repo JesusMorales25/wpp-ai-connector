@@ -222,6 +222,20 @@ setInterval(() => {
     if (BOT_CONFIG.ENABLE_LOGS) console.log('🧹 Memoria optimizada');
 }, BOT_CONFIG.MEMORY_CLEANUP_INTERVAL); // Cada 15 minutos
 
+// KEEP-ALIVE: Mantener la sesión activa con WhatsApp
+// Esto previene que WhatsApp cierre la sesión por inactividad
+setInterval(async () => {
+    if (isClientReady && whatsappClient) {
+        try {
+            // Ping silencioso para mantener la conexión activa
+            await whatsappClient.getState();
+            console.log('💓 Keep-alive: Sesión WhatsApp activa');
+        } catch (error) {
+            console.error('⚠️ Keep-alive falló:', error.message);
+        }
+    }
+}, 30 * 60 * 1000); // Cada 30 minutos
+
 // WATCHDOG: Monitorear y reiniciar conexión si se queda colgada
 let lastHealthCheck = Date.now();
 setInterval(async () => {
@@ -354,66 +368,130 @@ const initializeWhatsAppClient = async () => {
             puppeteerConfig.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
         }
 
+        // Asegurar que el directorio de sesión existe ANTES de inicializar
+        const sessionPath = './session_data';
+        if (!fs.existsSync(sessionPath)) {
+            console.log('📁 Creando directorio de sesión:', sessionPath);
+            fs.mkdirSync(sessionPath, { recursive: true });
+        } else {
+            console.log('✅ Directorio de sesión existe:', sessionPath);
+            // Verificar si hay sesión guardada
+            if (fs.existsSync(`${sessionPath}/session`)) {
+                console.log('💾 Sesión anterior encontrada - intentando restaurar...');
+            } else {
+                console.log('📱 No hay sesión guardada - se generará nuevo QR');
+            }
+        }
+
         whatsappClient = new Client({
             authStrategy: new LocalAuth({
-                dataPath: './session_data'
+                dataPath: sessionPath,
+                clientId: 'wpp-bot-client' // ID único para la sesión
             }),
-            puppeteer: puppeteerConfig
+            puppeteer: puppeteerConfig,
+            // Opciones adicionales para estabilidad
+            webVersionCache: {
+                type: 'remote',
+                remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html'
+            }
+        });
+
+        // Evento: Cargando sesión
+        whatsappClient.on('loading_screen', (percent, message) => {
+            console.log(`⏳ Cargando sesión: ${percent}% - ${message}`);
+            connectionStatus = 'loading_session';
         });
 
         // Evento: QR recibido
         whatsappClient.on('qr', (qr) => {
-            console.log('QR RECEIVED - Ready for scanning');
+            console.log('📱 QR RECIBIDO - Listo para escanear');
             qrCodeData = qr;
             connectionStatus = 'qr_received';
             
             // Mostrar QR en consola
-            console.log('Scan this QR code with your WhatsApp:');
+            console.log('Escanea este código QR con tu WhatsApp:');
             qrcode.generate(qr, { small: true });
         });
 
-        // Evento: Cliente listo
+        // Evento: Cliente autenticado (ANTES de ready)
+        whatsappClient.on('authenticated', () => {
+            console.log('✅ Autenticación exitosa! Guardando sesión...');
+            connectionStatus = 'authenticating';
+            
+            // Verificar que la carpeta de sesión existe
+            if (!fs.existsSync('./session_data')) {
+                console.log('📁 Creando carpeta session_data...');
+                fs.mkdirSync('./session_data', { recursive: true });
+            }
+        });
+
+        // Evento: Cliente listo (DESPUÉS de authenticated)
         whatsappClient.on('ready', () => {
-            console.log('WhatsApp Client is connected and ready!');
+            console.log('✅ Cliente WhatsApp conectado y listo!');
             isClientReady = true;
             connectionStatus = 'connected';
             qrCodeData = null;
             initializationInProgress = false;
-            // Marcar el momento cuando el bot está listo para procesar mensajes nuevos
+            
+            // Marcar el momento cuando el bot está listo
             botReadyTime = new Date();
-            console.log('🤖 Bot listo para procesar mensajes nuevos desde:', botReadyTime.toISOString());
-        });
-
-        // Evento: Cliente autenticado
-        whatsappClient.on('authenticated', () => {
-            console.log('WhatsApp Client authenticated successfully!');
-            connectionStatus = 'authenticating';
+            console.log('🤖 Bot listo para procesar mensajes desde:', botReadyTime.toISOString());
+            
+            // Verificar que la sesión se guardó
+            if (fs.existsSync('./session_data/session')) {
+                console.log('💾 Sesión guardada correctamente en ./session_data/');
+            } else {
+                console.warn('⚠️ WARNING: La sesión NO se guardó en disco');
+            }
         });
 
         // Evento: Fallo de autenticación
         whatsappClient.on('auth_failure', async (msg) => {
-            console.error('❌ Authentication failure:', msg);
-            connectionStatus = 'disconnected';
+            console.error('❌ FALLO DE AUTENTICACIÓN:', msg);
+            console.error('📋 Detalles del error:', typeof msg === 'string' ? msg : JSON.stringify(msg, null, 2));
+            
+            connectionStatus = 'auth_failed';
             qrCodeData = null;
             initializationInProgress = false;
             
-            // Limpiar sesión corrupta y reintentar
-            console.log('🗑️ Limpiando sesión corrupta...');
-            try {
-                await whatsappClient.destroy();
-                // Dar tiempo para limpiar
-                setTimeout(async () => {
-                    console.log('🔄 Reiniciando cliente para generar nuevo QR...');
+            // IMPORTANTE: NO destruir la sesión inmediatamente
+            // Puede ser un error temporal de red
+            console.log('⏸️ Esperando 10 segundos antes de limpiar sesión...');
+            
+            setTimeout(async () => {
+                try {
+                    console.log('🗑️ Verificando si necesita limpiar sesión...');
+                    
+                    // Solo limpiar si realmente la sesión está corrupta
+                    const sessionPath = './session_data/session';
+                    if (fs.existsSync(sessionPath)) {
+                        console.log('⚠️ Sesión existe pero falló auth - puede estar corrupta');
+                        console.log('🔄 Generando nuevo QR (mantener sesión como backup)...');
+                    }
+                    
+                    // Destruir cliente (pero mantener archivos de sesión)
+                    await whatsappClient.destroy();
+                    
+                    // Reiniciar (intentará usar sesión existente primero)
                     await initializeWhatsAppClient();
-                }, 3000);
-            } catch (error) {
-                console.error('Error limpiando sesión:', error.message);
-            }
+                    
+                } catch (error) {
+                    console.error('❌ Error manejando auth_failure:', error.message);
+                }
+            }, 10000); // 10 segundos de delay
         });
 
         // Evento: Cliente desconectado
         whatsappClient.on('disconnected', async (reason) => {
-            console.log('⚠️ WhatsApp Client disconnected:', reason);
+            const timestamp = new Date().toISOString();
+            console.log(`⚠️ [${timestamp}] WhatsApp Client DESCONECTADO`);
+            console.log('📋 Razón:', reason);
+            console.log('📊 Estado previo:', {
+                connectionStatus,
+                isClientReady,
+                uptime: Math.floor((Date.now() - botStats.startTime.getTime()) / 1000 / 60) + ' minutos'
+            });
+            
             isClientReady = false;
             connectionStatus = 'disconnected';
             qrCodeData = null;
@@ -468,7 +546,23 @@ const initializeWhatsAppClient = async () => {
 
                 // Verificar si el bot automático está habilitado
                 if (!autoBotEnabled) {
-                    return; // Sin log para ahorrar I/O
+                    // Log solo en modo debug para saber que los mensajes se están recibiendo
+                    if (BOT_CONFIG.ENABLE_LOGS) {
+                        console.log('🔇 Bot desactivado - mensaje ignorado de:', message.from.replace('@c.us', ''));
+                    }
+                    
+                    // OPCIONAL: Descomentar si quieres responder que el bot está desactivado
+                    // const userId = message.from;
+                    // const now = Date.now();
+                    // const lastNotification = userLastMessage.get(userId + '_bot_disabled');
+                    // 
+                    // // Solo notificar una vez cada 5 minutos
+                    // if (!lastNotification || now - lastNotification > 5 * 60 * 1000) {
+                    //     await message.reply('El bot automático está temporalmente desactivado. Intenta más tarde.');
+                    //     userLastMessage.set(userId + '_bot_disabled', now);
+                    // }
+                    
+                    return; // Salir sin procesar
                 }
 
                 // Mensajes históricos (validar solo para mensajes reales)
@@ -739,18 +833,72 @@ app.post('/api/whatsapp/toggle-autobot', (req, res) => {
     const { enabled } = req.body;
     
     if (typeof enabled === 'boolean') {
+        const previousState = autoBotEnabled;
         autoBotEnabled = enabled;
-        console.log(`🤖 Bot automático ${enabled ? 'ACTIVADO' : 'DESACTIVADO'}`);
+        
+        const emoji = enabled ? '✅ ACTIVADO' : '❌ DESACTIVADO';
+        const action = enabled ? 'activado' : 'desactivado';
+        
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log(`🤖 BOT AUTOMÁTICO ${emoji}`);
+        console.log(`📊 Estado anterior: ${previousState ? 'Activado' : 'Desactivado'}`);
+        console.log(`📊 Estado nuevo: ${enabled ? 'Activado' : 'Desactivado'}`);
+        console.log(`⏰ Cambio realizado: ${new Date().toLocaleString('es-PE')}`);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         
         res.json({
             success: true,
-            message: `Bot automático ${enabled ? 'activado' : 'desactivado'}`,
-            autoBotEnabled: autoBotEnabled
+            message: `Bot automático ${action} correctamente`,
+            autoBotEnabled: autoBotEnabled,
+            previousState: previousState,
+            timestamp: new Date().toISOString()
         });
     } else {
         res.status(400).json({
             success: false,
-            message: 'El parámetro "enabled" debe ser boolean'
+            message: 'El parámetro "enabled" debe ser boolean (true o false)'
+        });
+    }
+});
+
+// Limpiar sesión corrupta y reiniciar
+app.post('/api/whatsapp/clear-session', async (req, res) => {
+    try {
+        console.log('🗑️ Solicitud de limpieza de sesión recibida');
+        
+        // Destruir cliente si existe
+        if (whatsappClient) {
+            await whatsappClient.destroy();
+            console.log('✅ Cliente WhatsApp destruido');
+        }
+        
+        // Borrar carpeta de sesión
+        const sessionPath = './session_data/session';
+        if (fs.existsSync(sessionPath)) {
+            fs.rmSync(sessionPath, { recursive: true, force: true });
+            console.log('✅ Sesión borrada:', sessionPath);
+        }
+        
+        // Reiniciar cliente
+        isClientReady = false;
+        connectionStatus = 'initializing';
+        qrCodeData = null;
+        
+        setTimeout(async () => {
+            await initializeWhatsAppClient();
+            console.log('✅ Cliente reiniciado - generando nuevo QR');
+        }, 2000);
+        
+        res.json({
+            success: true,
+            message: 'Sesión limpiada. Generando nuevo QR en 2 segundos...'
+        });
+        
+    } catch (error) {
+        console.error('❌ Error limpiando sesión:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
         });
     }
 });

@@ -26,6 +26,7 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Configuración específica para Railway/Producción
+// FORCE REDEPLOY - Cambio timestamp: 2025-10-25
 const isProduction = process.env.NODE_ENV === 'production';
 
 // Middleware de seguridad - Headers HTTP

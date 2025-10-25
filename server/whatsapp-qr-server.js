@@ -1,3 +1,20 @@
+// 🎭 STEALTH MODE: Puppeteer Extra con plugin anti-detección
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+puppeteer.use(StealthPlugin());
+
+// 🔧 MONKEY PATCH: Forzar whatsapp-web.js a usar puppeteer-extra
+// Esto reemplaza la importación interna de puppeteer-core
+const Module = require('module');
+const originalRequire = Module.prototype.require;
+Module.prototype.require = function(id) {
+    if (id === 'puppeteer' || id === 'puppeteer-core') {
+        console.log('🎭 Interceptando require de puppeteer - usando puppeteer-extra con stealth');
+        return puppeteer;
+    }
+    return originalRequire.apply(this, arguments);
+};
+
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const express = require('express');
 const cors = require('cors');
@@ -324,22 +341,26 @@ const initializeWhatsAppClient = async () => {
         // Limpiar cliente anterior si existe
         await cleanupClient();
 
-        console.log('Initializing WhatsApp client for QR display...');
+        console.log('🎭 Inicializando WhatsApp con STEALTH MODE...');
         
-        // Configuración específica para Railway/Docker con ANTI-DETECCIÓN
+        // Configuración específica para Railway/Docker con PUPPETEER-EXTRA STEALTH
         const puppeteerConfig = {
             headless: true,
             timeout: 180000, // 3 minutos de timeout (aumentado para conexiones lentas)
             args: [
-                // Flags de seguridad (requeridos)
+                // Flags de seguridad (requeridos para Railway/Docker)
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
                 
-                // Anti-detección (críticos)
-                '--disable-blink-features=AutomationControlled',
-                '--disable-features=IsolateOrigins,site-per-process',
-                '--disable-site-isolation-trials',
+                // CRÍTICO: NO incluir flags que el stealth plugin ya maneja
+                // El stealth plugin se encarga de:
+                // - AutomationControlled
+                // - navigator.webdriver
+                // - navigator.plugins
+                // - navigator.languages
+                // - WebGL vendor/renderer
+                // - User agent
                 
                 // Optimización de rendimiento
                 '--disable-accelerated-2d-canvas',
@@ -357,22 +378,14 @@ const initializeWhatsAppClient = async () => {
                 '--mute-audio',
                 
                 // Deshabilitar features no necesarias
-                '--disable-features=VizDisplayCompositor,TranslateUI,AudioServiceOutOfProcess',
-                '--disable-web-security',
+                '--disable-features=TranslateUI,AudioServiceOutOfProcess',
                 '--disable-extensions',
-                '--disable-client-side-phishing-detection',
                 '--disable-sync',
                 '--disable-component-update',
-                '--disable-domain-reliability',
                 
                 // Optimización de memoria
-                '--disable-ipc-flooding-protection',
                 '--memory-pressure-off',
-                '--max_old_space_size=4096',
-                '--run-all-compositor-stages-before-draw',
-                
-                // User agent más realista
-                '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                '--max_old_space_size=4096'
             ],
             handleSIGINT: false,
             handleSIGTERM: false,
@@ -383,6 +396,8 @@ const initializeWhatsAppClient = async () => {
         if (process.env.PUPPETEER_EXECUTABLE_PATH) {
             puppeteerConfig.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
         }
+        
+        console.log('✅ Puppeteer iniciado con STEALTH PLUGIN (anti-detección avanzada)');
 
         // Asegurar que el directorio de sesión existe ANTES de inicializar
         const sessionPath = './session_data';
@@ -404,7 +419,13 @@ const initializeWhatsAppClient = async () => {
                 dataPath: sessionPath,
                 clientId: 'wpp-bot-client' // ID único para la sesión
             }),
-            puppeteer: puppeteerConfig,
+            puppeteer: {
+                ...puppeteerConfig,
+                // CRÍTICO: Usar puppeteer-extra en lugar de puppeteer-core
+                product: 'chrome',
+                // Inyectar la instancia de puppeteer-extra con stealth
+                browserWSEndpoint: undefined // Asegurar que cree nueva instancia
+            },
             // QUITAR webVersionCache - puede causar problemas de desconexión
             // WhatsApp Web se actualiza frecuentemente y versión hardcoded puede fallar
         });
@@ -474,15 +495,9 @@ const initializeWhatsAppClient = async () => {
             
             initializationInProgress = false;
             
-            // 🚫 RECONEXIÓN AUTOMÁTICA DESHABILITADA TEMPORALMENTE
-            // Evitar loops infinitos cuando WhatsApp Web detecta automatización
-            console.log('⛔ Reconexión automática DESHABILITADA (auth_failure)');
-            console.log('📝 Para reconectar manualmente, reinicia el servidor Railway');
-            console.log('💡 Revisa los logs para diagnosticar la causa del fallo de auth');
-            
-            /* RECONEXIÓN AUTOMÁTICA - DESHABILITADA
+            // 🎭 RECONEXIÓN AUTOMÁTICA HABILITADA (con STEALTH MODE)
             // Esperar antes de limpiar sesión
-            console.log('⏸️ Esperando 10 segundos antes de limpiar sesión...');
+            console.log('⏸️ Esperando 10 segundos antes de limpiar sesión (con stealth plugin)...');
             
             setTimeout(async () => {
                 try {
@@ -511,7 +526,7 @@ const initializeWhatsAppClient = async () => {
                     // Esperar 2 segundos más antes de reinicializar
                     await new Promise(resolve => setTimeout(resolve, 2000));
                     
-                    // Reiniciar (intentará usar sesión existente primero)
+                    // Reiniciar (intentará usar sesión existente primero, con stealth activo)
                     await initializeWhatsAppClient();
                     
                 } catch (error) {
@@ -519,7 +534,6 @@ const initializeWhatsAppClient = async () => {
                     initializationInProgress = false;
                 }
             }, 10000); // 10 segundos de delay
-            */
         });
 
         // Evento: Cliente desconectado
@@ -545,15 +559,8 @@ const initializeWhatsAppClient = async () => {
             
             initializationInProgress = false;
             
-            // 🚫 RECONEXIÓN AUTOMÁTICA DESHABILITADA TEMPORALMENTE
-            // Evitar loops infinitos cuando WhatsApp Web detecta automatización
-            console.log('⛔ Reconexión automática DESHABILITADA');
-            console.log('📝 Para reconectar manualmente, reinicia el servidor Railway');
-            console.log('💡 Revisa los logs para diagnosticar la causa de la desconexión');
-            
-            /* RECONEXIÓN AUTOMÁTICA - DESHABILITADA
-            // Intentar reconectar automáticamente después de 10 segundos
-            console.log('🔄 Programando reconexión en 10 segundos...');
+            // 🎭 RECONEXIÓN AUTOMÁTICA HABILITADA (con STEALTH MODE)
+            console.log('� Programando reconexión en 10 segundos (con stealth plugin)...');
             setTimeout(async () => {
                 try {
                     console.log('🔄 Iniciando reconexión automática...');
@@ -574,7 +581,7 @@ const initializeWhatsAppClient = async () => {
                     // Esperar 2 segundos más antes de reinicializar
                     await new Promise(resolve => setTimeout(resolve, 2000));
                     
-                    // Ahora sí reinicializar
+                    // Ahora sí reinicializar (con stealth plugin activo)
                     await initializeWhatsAppClient();
                     
                 } catch (error) {
@@ -583,7 +590,6 @@ const initializeWhatsAppClient = async () => {
                     initializationInProgress = false;
                 }
             }, 10000); // 10 segundos de delay
-            */
         });
 
         // Evento: Mensaje recibido - FILTROS ULTRA-TEMPRANOS ANTI-SPAM (SILENCIOSOS)

@@ -346,7 +346,7 @@ const initializeWhatsAppClient = async () => {
         // Limpiar cliente anterior si existe
         await cleanupClient();
 
-        console.log('🎭 Inicializando WhatsApp con STEALTH MODE...');
+        console.log('🎭 Inicializando WhatsApp con CONFIG MINIMALISTA (sin stealth)...');
         
         // Configuración SIMPLIFICADA para Railway/Docker
         const puppeteerConfig = {
@@ -378,7 +378,7 @@ const initializeWhatsAppClient = async () => {
             puppeteerConfig.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
         }
         
-        console.log('✅ Puppeteer iniciado con STEALTH PLUGIN (anti-detección avanzada)');
+        console.log('✅ Puppeteer iniciado con CONFIG MINIMALISTA (Vanilla Puppeteer-Core)');
 
         // Asegurar que el directorio de sesión existe ANTES de inicializar
         const sessionPath = './session_data';

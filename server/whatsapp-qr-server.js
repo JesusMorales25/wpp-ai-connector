@@ -1097,6 +1097,35 @@ app.post('/api/whatsapp/initialize', async (req, res) => {
     }
 });
 
+// NUEVO: Restart completo - Limpiar y reinicializar
+app.post('/api/whatsapp/restart', async (req, res) => {
+    try {
+        console.log('🔄 RESTART MANUAL solicitado');
+        
+        // Forzar limpieza completa
+        await cleanupClient();
+        
+        // Esperar 3 segundos
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        // Reinicializar
+        await initializeWhatsAppClient();
+        
+        res.json({ 
+            success: true, 
+            message: 'WhatsApp restarted successfully',
+            status: connectionStatus 
+        });
+    } catch (error) {
+        console.error('Error restarting WhatsApp:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error restarting WhatsApp',
+            error: error.message 
+        });
+    }
+});
+
 // Desconectar cliente
 // PROTEGIDO: Requiere API key válida
 app.post('/api/whatsapp/disconnect', validateApiKey, async (req, res) => {

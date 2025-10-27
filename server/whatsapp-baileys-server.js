@@ -344,11 +344,14 @@ async function processMessageWithBot(chatId, messageText, originalMessage) {
     // Llamar al backend de IA
     let botReply = null;
     try {
+      // Construir headers con X-API-KEY si está disponible
+      const headers = { 'Content-Type': 'application/json' };
+      const apiKey = process.env.BOT_API_KEY || process.env.KEY || process.env.X_API_KEY || process.env['X-API-KEY'];
+      if (apiKey) headers['X-API-KEY'] = apiKey;
+
       const response = await fetch(BOT_CONFIG.BOT_IA_ENDPOINT, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           message: messageText,
           chatId: chatId,

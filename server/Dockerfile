@@ -1,37 +1,34 @@
-# Dockerfile para WhatsApp Bot con Baileys (sin Chromium/Puppeteer)
-# Mucho más ligero - solo necesita Node.js
+# Imagen base oficial de Node.js 18
 FROM node:18-bullseye-slim
 
-# Configurar variables de entorno
+# Variables de entorno
 ENV NODE_ENV=production \
+    PORT=3001 \
     npm_config_cache=/tmp/.npm
 
-# Instalar solo certificados CA (requeridos para HTTPS)
+# Instalar certificados CA (para HTTPS)
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# Crear directorio de trabajo
+# Directorio de trabajo
 WORKDIR /app/server
 
-
-# Copiar package.json primero para aprovechar cache de Docker
+# Copiar solo los archivos de dependencias primero
 COPY package*.json ./
 
-
-# Instalar solo las dependencias necesarias
+# Instalar dependencias de producción
 RUN npm ci --only=production --silent --no-audit --no-fund \
     && npm cache clean --force \
     && rm -rf /tmp/.npm
 
-
-# Copiar el resto del código del servidor
+# Copiar el resto del código
 COPY . .
 
-# Exponer puerto
+# Exponer el puerto (opcional, Railway lo detecta por la variable PORT)
 EXPOSE 3001
 
-# Comando para ejecutar el NUEVO servidor con Baileys
+# Comando de inicio
 CMD ["node", "whatsapp-baileys-server.js"]

@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp QR Code - Baileys</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            text-align: center;
+            max-width: 500px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .status {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        #qrCode {
+            margin: 20px auto;
+            padding: 20px;
+            background: white;
+            border: 3px solid #667eea;
+            border-radius: 15px;
+            max-width: 100%;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .loading {
+            color: #667eea;
+            font-size: 18px;
+            padding: 40px;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .success {
+            color: #28a745;
+            font-size: 24px;
+            padding: 40px;
+        }
+        .error {
+            color: #dc3545;
+            padding: 20px;
+        }
+        .info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            font-size: 13px;
+            color: #666;
+        }
+        .info strong {
+            color: #333;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: all 0.3s;
+        }
+        button:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📱 WhatsApp QR Code</h1>
+        <p class="status" id="statusText">Cargando...</p>
+        
+        <div id="content">
+            <div class="spinner"></div>
+            <p class="loading">Obteniendo QR code...</p>
+        </div>
+
+        <div class="info" id="info" style="display: none;">
+            <strong>Estado:</strong> <span id="statusValue">-</span><br>
+            <strong>Sesión guardada:</strong> <span id="sessionValue">-</span><br>
+            <strong>Bot automático:</strong> <span id="botValue">-</span><br>
+            <strong>Mensajes enviados:</strong> <span id="sentValue">0</span><br>
+            <strong>Mensajes recibidos:</strong> <span id="receivedValue">0</span><br>
+            <strong>Tiempo activo:</strong> <span id="uptimeValue">0s</span>
+        </div>
+
+        <button onclick="refreshQR()">🔄 Actualizar QR</button>
+    </div>
+
+    <script>
+        let refreshInterval;
+
+        async function loadQR() {
+            try {
+                const response = await fetch('http://localhost:3001/api/whatsapp/status');
+                const data = await response.json();
+
+                console.log('Status:', data);
+
+                // Actualizar información
+                document.getElementById('statusValue').textContent = data.status;
+                document.getElementById('sessionValue').textContent = data.hasSession ? 'Sí' : 'No';
+                document.getElementById('botValue').textContent = data.autoBotEnabled ? 'Activado ✅' : 'Desactivado ❌';
+                document.getElementById('sentValue').textContent = data.stats.messagesSent;
+                document.getElementById('receivedValue').textContent = data.stats.messagesReceived;
+                document.getElementById('uptimeValue').textContent = data.stats.uptime + 's';
+                document.getElementById('info').style.display = 'block';
+
+                // Mostrar contenido según el estado
+                if (data.status === 'connected' && data.isReady) {
+                    // Conectado exitosamente
+                    document.getElementById('content').innerHTML = `
+                        <div class="success">
+                            ✅ WhatsApp Conectado
+                            <p style="font-size: 16px; margin-top: 10px;">
+                                El bot está funcionando correctamente
+                            </p>
+                        </div>
+                    `;
+                    document.getElementById('statusText').textContent = '¡Todo listo!';
+                    document.getElementById('statusText').style.color = '#28a745';
+
+                    // Detener actualización automática
+                    if (refreshInterval) {
+                        clearInterval(refreshInterval);
+                    }
+
+                } else if (data.qrCode) {
+                    // Mostrar QR
+                    document.getElementById('content').innerHTML = `
+                        <img id="qrCode" src="${data.qrCode}" alt="QR Code">
+                        <p style="color: #667eea; font-weight: bold;">
+                            Escanea este código con WhatsApp
+                        </p>
+                        <p style="color: #999; font-size: 13px;">
+                            1. Abre WhatsApp en tu teléfono<br>
+                            2. Toca Menú ⋮ > Dispositivos vinculados<br>
+                            3. Toca "Vincular un dispositivo"<br>
+                            4. Escanea este código QR
+                        </p>
+                    `;
+                    document.getElementById('statusText').textContent = 'Escanea el código QR';
+                    
+                    // Actualizar cada 5 segundos para detectar cuando se conecte
+                    if (!refreshInterval) {
+                        refreshInterval = setInterval(loadQR, 5000);
+                    }
+
+                } else {
+                    // Sin QR (esperando...)
+                    document.getElementById('content').innerHTML = `
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            <p>Generando QR code...</p>
+                            <p style="font-size: 13px; color: #999;">
+                                Estado: ${data.status}
+                            </p>
+                        </div>
+                    `;
+                    document.getElementById('statusText').textContent = 'Esperando...';
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('content').innerHTML = `
+                    <div class="error">
+                        ❌ Error de conexión
+                        <p style="font-size: 14px; margin-top: 10px;">
+                            No se puede conectar con el servidor.<br>
+                            Asegúrate de que el servidor esté corriendo en el puerto 3001.
+                        </p>
+                        <p style="font-size: 12px; color: #999; margin-top: 10px;">
+                            ${error.message}
+                        </p>
+                    </div>
+                `;
+                document.getElementById('statusText').textContent = 'Error';
+                document.getElementById('statusText').style.color = '#dc3545';
+            }
+        }
+
+        function refreshQR() {
+            document.getElementById('content').innerHTML = `
+                <div class="spinner"></div>
+                <p class="loading">Actualizando...</p>
+            `;
+            loadQR();
+        }
+
+        // Cargar al iniciar
+        loadQR();
+
+        // Actualizar automáticamente cada 3 segundos mientras se espera el QR
+        refreshInterval = setInterval(loadQR, 3000);
+    </script>
+</body>
+</html>

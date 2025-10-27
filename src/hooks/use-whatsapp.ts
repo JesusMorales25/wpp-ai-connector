@@ -225,19 +225,18 @@ export const useWhatsApp = () => {
     }
   }, []);
 
-  // Verificar estado inicial y establecer polling
+  // Verificar estado inicial y establecer polling continuo
   useEffect(() => {
+    // Primera comprobación inmediata
     checkStatus();
-    
-    // Verificar estado cada 5 segundos cuando esté desconectado
+
+    // Polling continuo cada 2s para mantener la UI sincronizada con el backend
     const interval = setInterval(() => {
-      if (status.status === 'disconnected' || status.status === 'qr_received') {
-        checkStatus();
-      }
-    }, 5000);
-    
+      checkStatus();
+    }, 2000);
+
     return () => clearInterval(interval);
-  }, [checkStatus, status.status]);
+  }, [checkStatus]);
 
   return {
     // Estado

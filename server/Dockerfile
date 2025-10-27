@@ -1,22 +1,15 @@
-# Dockerfile optimizado para Railway
+# Dockerfile para WhatsApp Bot con Baileys (sin Chromium/Puppeteer)
+# Mucho más ligero - solo necesita Node.js
 FROM node:18-bullseye-slim
 
-# Configurar variables de entorno antes de instalar
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable \
-    NODE_ENV=production \
+# Configurar variables de entorno
+ENV NODE_ENV=production \
     npm_config_cache=/tmp/.npm
 
-# Instalar dependencias básicas y Chrome en una sola capa
+# Instalar solo certificados CA (requeridos para HTTPS)
 RUN apt-get update && apt-get install -y \
-    wget gnupg ca-certificates \
-    fonts-liberation libappindicator3-1 libasound2 libatk-bridge2.0-0 \
-    libdrm2 libxcomposite1 libxdamage1 libxrandr2 libgbm1 libxss1 libnss3 \
+    ca-certificates \
     --no-install-recommends \
-    && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google.list \
-    && apt-get update \
-    && apt-get install -y google-chrome-stable --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
@@ -26,7 +19,7 @@ WORKDIR /app/server
 # Copiar package.json primero para aprovechar cache de Docker
 COPY server/package*.json ./
 
-# Instalar solo las dependencias necesarias más rápido
+# Instalar solo las dependencias necesarias
 RUN npm ci --only=production --silent --no-audit --no-fund \
     && npm cache clean --force \
     && rm -rf /tmp/.npm
@@ -37,5 +30,5 @@ COPY server/ ./
 # Exponer puerto
 EXPOSE 3001
 
-# Comando para ejecutar
-CMD ["node", "whatsapp-qr-server.js"]
+# Comando para ejecutar el NUEVO servidor con Baileys
+CMD ["node", "whatsapp-baileys-server.js"]

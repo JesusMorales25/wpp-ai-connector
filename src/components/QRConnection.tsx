@@ -25,11 +25,17 @@ const QRConnection = ({ onConnectionChange }: QRConnectionProps) => {
 
   const [qrImageUrl, setQrImageUrl] = useState<string>("");
 
-  // Generar URL del QR code
+  // Usar directamente el QR code (Baileys envía data URI)
   useEffect(() => {
     if (status.qrCode) {
-      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(status.qrCode)}`;
-      setQrImageUrl(qrUrl);
+      // Si ya es un data URI (empieza con data:image), usarlo directamente
+      if (status.qrCode.startsWith('data:image')) {
+        setQrImageUrl(status.qrCode);
+      } else {
+        // Si es texto plano, usar API externa (legacy para whatsapp-web.js)
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(status.qrCode)}`;
+        setQrImageUrl(qrUrl);
+      }
     } else {
       setQrImageUrl("");
     }

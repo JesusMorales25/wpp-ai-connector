@@ -16,16 +16,19 @@ RUN apt-get update && apt-get install -y \
 # Crear directorio de trabajo
 WORKDIR /app/server
 
+
 # Copiar package.json primero para aprovechar cache de Docker
-COPY server/package*.json ./
+COPY package*.json ./
+
 
 # Instalar solo las dependencias necesarias
 RUN npm ci --only=production --silent --no-audit --no-fund \
     && npm cache clean --force \
     && rm -rf /tmp/.npm
 
+
 # Copiar el resto del código del servidor
-COPY server/ ./
+COPY . .
 
 # Exponer puerto
 EXPOSE 3001

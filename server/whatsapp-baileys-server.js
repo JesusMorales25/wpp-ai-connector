@@ -349,13 +349,15 @@ async function processMessageWithBot(chatId, messageText, originalMessage) {
       const apiKey = process.env.BOT_API_KEY || process.env.KEY || process.env.X_API_KEY || process.env['X-API-KEY'];
       if (apiKey) headers['X-API-KEY'] = apiKey;
 
+      // Extraer número de chatId (ej: 549123456789@s.whatsapp.net -> 549123456789)
+      const numero = String(chatId).split('@')[0];
+
       const response = await fetch(BOT_CONFIG.BOT_IA_ENDPOINT, {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          message: messageText,
-          chatId: chatId,
-          timestamp: new Date().toISOString()
+          numero,
+          mensaje: messageText
         })
       });
 

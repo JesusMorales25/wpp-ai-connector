@@ -363,7 +363,10 @@ async function processMessageWithBot(chatId, messageText, originalMessage) {
 
       if (response.ok) {
         const data = await response.json();
-        botReply = data.response || data.message || null;
+        botReply = data.response || data.message || data.data || data.respuesta || data.texto || data.reply || null;
+        if (!botReply && typeof data === 'string') {
+          botReply = data;
+        }
       } else {
         // Dejar que caiga al fallback
         throw new Error(`Backend IA error: ${response.status}`);

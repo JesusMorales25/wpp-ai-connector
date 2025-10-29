@@ -308,15 +308,10 @@ async function handleIncomingMessage(msg) {
       toDelete.forEach(id => processedMessages.delete(id));
     }
     
-    botStats.messagesReceived++;
-    
-    console.log(`📩 Mensaje de ${from}: ${messageText.substring(0, 50)}...`);
-    
-    // Si el bot automático está desactivado, solo registrar
-    if (!autoBotEnabled) {
-      console.log('⏸️ Bot automático desactivado - mensaje no procesado');
-      return;
-    }
+      botStats.messagesReceived++;    
+      if (!autoBotEnabled) {
+        return;
+      }
     
     // Procesar con el bot IA
     await processMessageWithBot(from, messageText, msg);
@@ -430,7 +425,7 @@ async function processMessageWithBot(chatId, messageText, originalMessage) {
     botStats.messagesSent++;
     botStats.autoReplies++;
     
-    console.log(`✅ Respuesta enviada a ${chatId}`);
+  // Log crítico ya realizado junto al contenido de la respuesta
     
     // Remover indicador de escritura
     await sock.sendPresenceUpdate('available', chatId);

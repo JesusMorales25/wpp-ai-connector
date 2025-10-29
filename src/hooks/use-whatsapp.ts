@@ -107,7 +107,7 @@ export const useWhatsApp = () => {
       }
       
       // Comenzar a verificar el estado periódicamente
-      const interval = setInterval(checkStatus, 2000);
+  const interval = setInterval(checkStatus, 15000);
       
       // Limpiar interval después de 60 segundos o cuando se conecte
       setTimeout(() => clearInterval(interval), 60000);
@@ -233,7 +233,7 @@ export const useWhatsApp = () => {
     // Polling continuo cada 2s para mantener la UI sincronizada con el backend
     const interval = setInterval(() => {
       checkStatus();
-    }, 2000);
+    }, 15000);
 
     return () => clearInterval(interval);
   }, [checkStatus]);

@@ -96,7 +96,7 @@ const BotControl = ({ isConnected }: BotControlProps) => {
   useEffect(() => {
     if (isConnected) {
       fetchStats();
-      const interval = setInterval(fetchStats, 5000);
+  const interval = setInterval(fetchStats, 15000);
       return () => clearInterval(interval);
     }
   }, [isConnected]);

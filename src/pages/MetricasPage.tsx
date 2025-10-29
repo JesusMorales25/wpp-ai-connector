@@ -94,15 +94,15 @@ const MetricasPage: React.FC = () => {
   }, [fetchMetricas]);
 
   // Procesar datos para gráficos
-  const mensajesPorDiaChart = metricas?.mensajes_por_dia.map(item => ({
+  const mensajesPorDiaChart = (metricas?.mensajes_por_dia || []).map(item => ({
     ...item,
     fechaFormateada: format(parseISO(item.fecha), 'dd/MM', { locale: es })
-  })) || [];
+  }));
 
-  const categoriasDistribucion = metricas?.contactos_recientes.reduce((acc, contacto) => {
+  const categoriasDistribucion = (metricas?.contactos_recientes || []).reduce((acc, contacto) => {
     acc[contacto.categoria] = (acc[contacto.categoria] || 0) + 1;
     return acc;
-  }, {} as Record<string, number>) || {};
+  }, {} as Record<string, number>);
 
   const categoriasChart = Object.entries(categoriasDistribucion).map(([categoria, cantidad]) => ({
     name: categoria, // Usar 'name' para que la Legend funcione correctamente

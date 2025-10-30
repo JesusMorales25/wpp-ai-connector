@@ -590,18 +590,22 @@ export const ConversacionesPage: React.FC = () => {
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Promedio Diario</span>
                     <span className="font-bold">
-                      {(conversacionesPorDia.reduce((sum, dia) => sum + dia.cantidad, 0) / conversacionesPorDia.length).toFixed(0)}
+                      {(Array.isArray(conversacionesPorDia) && conversacionesPorDia.length > 0
+                        ? (conversacionesPorDia.reduce((sum, dia) => sum + dia.cantidad, 0) / conversacionesPorDia.length).toFixed(0)
+                        : '0')}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Día más Activo</span>
                     <span className="font-bold">
-                      {Math.max(...conversacionesPorDia.map(dia => dia.cantidad))}
+                      {Array.isArray(conversacionesPorDia) && conversacionesPorDia.length > 0
+                        ? Math.max(...conversacionesPorDia.map(dia => dia.cantidad))
+                        : '0'}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Días Registrados</span>
-                    <Badge variant="outline">{conversacionesPorDia.length}</Badge>
+                    <Badge variant="outline">{Array.isArray(conversacionesPorDia) ? conversacionesPorDia.length : 0}</Badge>
                   </div>
                 </>
               )}

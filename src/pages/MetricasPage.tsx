@@ -164,10 +164,10 @@ const MetricasPage: React.FC = () => {
                 <MessageSquare className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-xl sm:text-2xl font-bold">{metricas.totales.total_mensajes.toLocaleString()}</div>
+                <div className="text-xl sm:text-2xl font-bold">{metricas?.totales?.total_mensajes?.toLocaleString?.() ?? 0}</div>
                 <p className="text-xs text-muted-foreground">
-                  Bot: {metricas.totales.total_mensajes_bot} | 
-                  Usuario: {metricas.totales.total_mensajes_usuario}
+                  Bot: {metricas?.totales?.total_mensajes_bot ?? 0} | 
+                  Usuario: {metricas?.totales?.total_mensajes_usuario ?? 0}
                 </p>
               </CardContent>
             </Card>
@@ -178,9 +178,9 @@ const MetricasPage: React.FC = () => {
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-xl sm:text-2xl font-bold">{metricas.totales.contactos_activos.toLocaleString()}</div>
+                <div className="text-xl sm:text-2xl font-bold">{metricas?.totales?.contactos_activos?.toLocaleString?.() ?? 0}</div>
                 <p className="text-xs text-muted-foreground">
-                  Total conversaciones: {metricas.totales.total_conversaciones}
+                  Total conversaciones: {metricas?.totales?.total_conversaciones ?? 0}
                 </p>
               </CardContent>
             </Card>
@@ -192,7 +192,7 @@ const MetricasPage: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-xl sm:text-2xl font-bold">
-                  {(metricas.totales.tasa_respuesta * 100).toFixed(1)}%
+                  {((metricas?.totales?.tasa_respuesta ?? 0) * 100).toFixed(1)}%
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Efectividad de respuestas automáticas
@@ -341,7 +341,7 @@ const MetricasPage: React.FC = () => {
             <Card className="text-center">
               <CardContent className="pt-6">
                 <Bot className="h-8 w-8 mx-auto mb-2 text-blue-500" />
-                <div className="text-2xl font-bold">{metricas.totales.total_mensajes_bot}</div>
+                <div className="text-2xl font-bold">{metricas?.totales?.total_mensajes_bot ?? 0}</div>
                 <p className="text-sm text-muted-foreground">Mensajes del Bot</p>
               </CardContent>
             </Card>
@@ -349,7 +349,7 @@ const MetricasPage: React.FC = () => {
             <Card className="text-center">
               <CardContent className="pt-6">
                 <Users className="h-8 w-8 mx-auto mb-2 text-green-500" />
-                <div className="text-2xl font-bold">{metricas.totales.total_mensajes_usuario}</div>
+                <div className="text-2xl font-bold">{metricas?.totales?.total_mensajes_usuario ?? 0}</div>
                 <p className="text-sm text-muted-foreground">Mensajes de Usuarios</p>
               </CardContent>
             </Card>
@@ -366,8 +366,8 @@ const MetricasPage: React.FC = () => {
               <CardContent className="pt-6">
                 <TrendingUp className="h-8 w-8 mx-auto mb-2 text-purple-500" />
                 <div className="text-2xl font-bold">
-                  {metricas.totales.contactos_activos > 0 ? 
-                    (metricas.totales.total_mensajes / metricas.totales.contactos_activos).toFixed(1) : 
+                  {metricas?.totales?.contactos_activos > 0 ? 
+                    ((metricas?.totales?.total_mensajes ?? 0) / (metricas?.totales?.contactos_activos ?? 1)).toFixed(1) : 
                     '0'
                   }
                 </div>

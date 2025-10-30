@@ -279,7 +279,7 @@ const MetricasPage: React.FC = () => {
             <CardHeader>
               <CardTitle className="text-base sm:text-lg">Contactos Recientes</CardTitle>
               <p className="text-xs sm:text-sm text-muted-foreground">
-                Últimos {metricas.contactos_recientes.length} contactos con actividad
+                Últimos {(metricas?.contactos_recientes?.length ?? 0)} contactos con actividad
               </p>
             </CardHeader>
             <CardContent className="px-2 sm:px-6">

@@ -76,7 +76,7 @@ const DifusionPage = () => {
       try {
         console.log('🔄 Cargando leads desde el backend...');
         const leads = await backendApi.getLeadsData();
-        console.log('📊 Leads obtenidos:', leads.length, leads);
+  console.log('📊 Leads obtenidos:', (leads || []).length, leads);
         
         allContacts = [
           ...allContacts,
@@ -90,51 +90,17 @@ const DifusionPage = () => {
               origen: 'Leads'
             }))
         ];
-        console.log('✅ Leads procesados para difusión:', allContacts.length);
+  console.log('✅ Leads procesados para difusión:', (allContacts || []).length);
       } catch (error) {
         console.error('❌ Error loading leads:', error);
         toast.error('Error al cargar leads: ' + (error instanceof Error ? error.message : 'Error desconocido'));
       }
 
-      // Intentar obtener contactos de conversaciones también
-      try {
-        // Cargar conversaciones existentes para obtener más contactos
-        const conversacionesResponse = await fetch(`${API_CONFIG.BACKEND_API_URL}/api/conversaciones/all`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          },
-        });
-
-        if (conversacionesResponse.ok) {
-          const conversacionesData = await conversacionesResponse.json();
-          const conversaciones = conversacionesData.conversaciones || [];
-          
-          // Extraer contactos únicos de conversaciones
-          const contactosConversaciones = conversaciones
-            .filter((conv: Conversation) => conv.numeroContacto && conv.nombreContacto)
-            .map((conv: Conversation) => ({
-              id: `conv-${conv.numeroContacto}`,
-              telefono: conv.numeroContacto,
-              nombre: conv.nombreContacto,
-              categoria: 'Conversación',
-              origen: 'Conversaciones'
-            }));
-
-          // Eliminar duplicados por teléfono
-          const telefonosExistentes = new Set(allContacts.map(c => c.telefono));
-          const contactosNuevos = contactosConversaciones.filter(
-            (conv: Conversation) => !telefonosExistentes.has(conv.telefono)
-          );
-
-          allContacts = [...allContacts, ...contactosNuevos];
-        }
-      } catch (error) {
-        console.log('No se pudieron cargar conversaciones:', error);
-      }
+      // Si necesitas cargar contactos de conversaciones, usa un endpoint que devuelva teléfonos y nombres reales.
 
       setAvailableContacts(allContacts);
-      if (allContacts.length > 0) {
-        toast.success(`${allContacts.length} contactos disponibles cargados`);
+      if ((allContacts || []).length > 0) {
+        toast.success(`${(allContacts || []).length} contactos disponibles cargados`);
       } else {
         toast.info('No se encontraron contactos disponibles');
       }
@@ -283,7 +249,7 @@ const DifusionPage = () => {
       return;
     }
 
-    if (contacts.length === 0) {
+  if ((contacts || []).length === 0) {
       toast.error("Agrega contactos a la lista");
       return;
     }
@@ -314,7 +280,7 @@ const DifusionPage = () => {
     toast.info("Iniciando difusión masiva...");
 
     // Envío progresivo con API real
-    for (let i = 0; i < campaignMessages.length; i++) {
+  for (let i = 0; i < (campaignMessages || []).length; i++) {
       const message = campaignMessages[i];
       
       // Actualizar estado a "enviando"
@@ -341,7 +307,7 @@ const DifusionPage = () => {
         toast.success(`Mensaje enviado a ${message.nombre || message.numero}`);
 
         // Delay anti-spam y anti-procesamiento (3 segundos entre envíos)
-        if (i < campaignMessages.length - 1) {
+  if (i < (campaignMessages || []).length - 1) {
           await new Promise(resolve => setTimeout(resolve, 3000));
         }
 
@@ -360,7 +326,7 @@ const DifusionPage = () => {
       }
 
       // Actualizar progreso
-      setProgress(((i + 1) / campaignMessages.length) * 100);
+  setProgress(((i + 1) / (campaignMessages || []).length) * 100);
     }
 
     // Desactivar modo difusión para todos los números
@@ -378,10 +344,10 @@ const DifusionPage = () => {
 
   // Estadísticas de la campaña
   const stats = {
-    total: campaign.length,
-    enviados: campaign.filter(m => m.estado === "enviado").length,
-    errores: campaign.filter(m => m.estado === "error").length,
-    pendientes: campaign.filter(m => m.estado === "pendiente").length,
+  total: (campaign || []).length,
+  enviados: (campaign || []).filter(m => m.estado === "enviado").length,
+  errores: (campaign || []).filter(m => m.estado === "error").length,
+  pendientes: (campaign || []).filter(m => m.estado === "pendiente").length,
   };
 
   return (
@@ -432,7 +398,7 @@ const DifusionPage = () => {
                 <div className="flex items-center gap-2">
                   <Users className="w-5 h-5 text-primary" />
                   <h3 className="text-lg font-semibold">Contactos</h3>
-                  <Badge variant="secondary">{contacts.length}</Badge>
+                  <Badge variant="secondary">{(contacts || []).length}</Badge>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button
@@ -445,7 +411,7 @@ const DifusionPage = () => {
                     <UserPlus className="w-4 h-4 mr-1 sm:mr-2" />
                     <span className="hidden sm:inline">{loadingContacts ? 'Cargando...' : 'Disponibles'}</span>
                     <span className="sm:hidden">{loadingContacts ? 'Cargando...' : 'Disp.'}</span>
-                    <Badge className="ml-1 sm:ml-2">{availableContacts.length}</Badge>
+                    <Badge className="ml-1 sm:ml-2">{(availableContacts || []).length}</Badge>
                   </Button>
                   <Button
                     onClick={() => setShowAddContact(true)}
@@ -484,7 +450,7 @@ const DifusionPage = () => {
                 <div className="mb-4 p-4 bg-secondary rounded-lg border">
                   <h4 className="font-medium mb-3">Contactos Disponibles</h4>
                   <div className="max-h-48 overflow-y-auto space-y-2">
-                    {availableContacts.length === 0 ? (
+                    {(availableContacts || []).length === 0 ? (
                       <p className="text-sm text-muted-foreground text-center py-4">
                         No hay contactos disponibles
                       </p>
@@ -550,7 +516,7 @@ const DifusionPage = () => {
 
               {/* Lista de contactos seleccionados */}
               <div className="max-h-64 overflow-y-auto space-y-2">
-                {contacts.length === 0 ? (
+                {(contacts || []).length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
                     <p>No hay contactos agregados</p>
@@ -627,7 +593,7 @@ const DifusionPage = () => {
           {/* Panel de resultados */}
           <div className="space-y-6">
             {/* Progreso */}
-            {campaign.length > 0 && (
+            {(campaign || []).length > 0 && (
               <Card className="p-6 shadow-elegant">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold">Progreso de Campaña</h3>
@@ -708,7 +674,7 @@ const DifusionPage = () => {
             )}
 
             {/* Información */}
-            {campaign.length === 0 && (
+            {(campaign || []).length === 0 && (
               <Card className="p-6 shadow-elegant">
                 <h3 className="text-lg font-semibold mb-4">Cómo usar la difusión masiva</h3>
                 <div className="space-y-3 text-sm text-muted-foreground">

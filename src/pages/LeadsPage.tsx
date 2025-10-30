@@ -140,11 +140,11 @@ export const LeadsPage: React.FC = () => {
   };
 
   const generarTarjetasMetricas = (): MetricaCard[] => {
-    const totalLeads = leads.length;
+  const totalLeads = (leads || []).length;
     const leadsHoy = totalLeadsHoy?.total || 0;
     const totalHoy = totalLeadsHoy?.total || 0;
-    const registros = leads.filter(l => l.categoria === 'REGISTRO').length;
-    const curiosos = leads.filter(l => l.categoria === 'CURIOSO').length;
+  const registros = (leads || []).filter(l => l.categoria === 'REGISTRO').length;
+  const curiosos = (leads || []).filter(l => l.categoria === 'CURIOSO').length;
     
     // Calcular tasa de registro
     const tasaRegistro = totalLeads > 0 ? (registros / totalLeads * 100) : 0;
@@ -285,7 +285,7 @@ export const LeadsPage: React.FC = () => {
               {showTable ? 'Ocultar Tabla' : 'Mostrar Tabla'}
             </Button>
             <span className="text-sm text-muted-foreground">
-              {leadsFiltered.length} de {leads.length} leads
+              {(leadsFiltered || []).length} de {(leads || []).length} leads
             </span>
           </div>
         </div>
@@ -312,7 +312,7 @@ export const LeadsPage: React.FC = () => {
                   <div className="text-2xl font-bold">{cantidad}</div>
                   <div className="text-sm text-muted-foreground">{categoria}</div>
                   <Badge variant="secondary">
-                    {leadsFiltered.length > 0 ? ((cantidad / leadsFiltered.length) * 100).toFixed(1) : 0}%
+                    {(leadsFiltered || []).length > 0 ? ((cantidad / (leadsFiltered || []).length) * 100).toFixed(1) : 0}%
                   </Badge>
                 </div>
               ))}
@@ -368,7 +368,7 @@ export const LeadsPage: React.FC = () => {
                         </TableCell>
                       </TableRow>
                     ))}
-                    {leadsFiltered.length === 0 && (
+                    {(leadsFiltered || []).length === 0 && (
                       <TableRow>
                         <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                           No se encontraron leads con los filtros aplicados
@@ -435,7 +435,7 @@ export const LeadsPage: React.FC = () => {
                     name: categoria, // Usar 'name' en lugar de 'categoria' para la Legend
                     categoria,
                     cantidad,
-                    porcentaje: leadsFiltered.length > 0 ? (cantidad / leadsFiltered.length * 100) : 0
+                    porcentaje: (leadsFiltered || []).length > 0 ? (cantidad / (leadsFiltered || []).length * 100) : 0
                   }))}
                   cx="50%"
                   cy="50%"
@@ -464,7 +464,7 @@ export const LeadsPage: React.FC = () => {
                     // value aquí debería ser la categoría gracias al nameKey
                     const categoria = value;
                     const leadData = Object.entries(resumenCategorias).find(([cat]) => cat === categoria);
-                    const porcentaje = leadData && leadsFiltered.length > 0 ? (leadData[1] / leadsFiltered.length * 100) : 0;
+                    const porcentaje = leadData && (leadsFiltered || []).length > 0 ? (leadData[1] / (leadsFiltered || []).length * 100) : 0;
                     return (
                       <span style={{ color: entry.color }}>
                         {categoria} ({porcentaje.toFixed(1)}%)

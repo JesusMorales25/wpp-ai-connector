@@ -284,7 +284,7 @@ const MetricasPage: React.FC = () => {
             </CardHeader>
             <CardContent className="px-2 sm:px-6">
               <div className="space-y-3 sm:space-y-4">
-                {metricas.contactos_recientes.slice(0, 8).map((contacto) => (
+                {(metricas?.contactos_recientes || []).slice(0, 8).map((contacto) => (
                   <div key={contacto.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 border rounded-lg gap-3">
                     <div className="flex items-center space-x-3 sm:space-x-4 min-w-0 flex-1">
                       <Avatar className="flex-shrink-0">

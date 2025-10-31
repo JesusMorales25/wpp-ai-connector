@@ -289,10 +289,9 @@ const MetricasPage: React.FC = () => {
                     <div className="flex items-center space-x-3 sm:space-x-4 min-w-0 flex-1">
                       <Avatar className="flex-shrink-0">
                         <AvatarFallback>
-                          {contacto.nombre ? 
-                            contacto.nombre.split(' ').map(n => n[0]).join('').toUpperCase() : 
-                            'U'
-                          }
+                          {typeof contacto.nombre === 'string' && contacto.nombre
+                            ? contacto.nombre.split(' ').map(n => n[0]).join('').toUpperCase()
+                            : 'U'}
                         </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0 flex-1">

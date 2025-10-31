@@ -317,7 +317,9 @@ const MetricasPage: React.FC = () => {
                         </div>
                         <div className="text-xs text-muted-foreground flex items-center">
                           <Clock className="h-3 w-3 mr-1" />
-                          {format(parseISO(contacto.ultima_interaccion), 'dd/MM/yyyy HH:mm', { locale: es })}
+                          {contacto.ultima_interaccion ?
+                            format(parseISO(contacto.ultima_interaccion), 'dd/MM/yyyy HH:mm', { locale: es })
+                            : 'Sin interacción'}
                         </div>
                       </div>
                       <Badge 

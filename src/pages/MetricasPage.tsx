@@ -192,7 +192,7 @@ const MetricasPage: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-xl sm:text-2xl font-bold">
-                  {((metricas?.totales?.tasa_respuesta ?? 0) * 100).toFixed(1)}%
+                  {(metricas?.totales?.tasa_respuesta ?? 0).toFixed(1)}%
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Efectividad de respuestas automáticas

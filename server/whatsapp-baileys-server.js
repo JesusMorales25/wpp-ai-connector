@@ -565,12 +565,8 @@ async function groupAndProcessMessage(chatId, messageText, originalMessage) {
   try {
     const now = Date.now();
     
-    // Verificar cooldown por usuario
-    const lastProcessed = userCooldowns.get(chatId);
-    if (lastProcessed && (now - lastProcessed) < BOT_CONFIG.COOLDOWN_MS) {
-      console.log(`⏳ Usuario ${chatId} en cooldown, ignorando mensaje`);
-      return;
-    }
+    // NO verificar cooldown aquí - dejar que los mensajes se agrupen
+    // El cooldown se verificará AL PROCESAR el grupo completo
     
     // Obtener o crear grupo de mensajes para este chat
     let group = messageGroups.get(chatId);
@@ -625,6 +621,19 @@ async function processGroupedMessages(chatId) {
   try {
     const group = messageGroups.get(chatId);
     if (!group || group.messages.length === 0) {
+      return;
+    }
+    
+    // ✅ VERIFICAR COOLDOWN AQUÍ - después de agrupar mensajes
+    const now = Date.now();
+    const lastProcessed = userCooldowns.get(chatId);
+    if (lastProcessed && (now - lastProcessed) < BOT_CONFIG.COOLDOWN_MS) {
+      const remainingTime = BOT_CONFIG.COOLDOWN_MS - (now - lastProcessed);
+      console.log(`⏳ Usuario ${chatId} en cooldown (${Math.ceil(remainingTime/1000)}s restantes), ignorando ${group.messages.length} mensajes agrupados`);
+      messageGroups.delete(chatId);
+      if (group.timeout) {
+        clearTimeout(group.timeout);
+      }
       return;
     }
     

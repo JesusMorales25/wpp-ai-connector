@@ -131,6 +131,11 @@ let autoBotEnabled = process.env.AUTO_BOT_ENABLED !== 'false';
 let botReadyTime = null;
 let shouldAutoReconnect = true; // Control de reconexión automática
 
+// Control de QR codes para evitar spam infinito
+let qrAttempts = 0;
+const MAX_QR_ATTEMPTS = 3;
+let hasValidSession = false; // Nueva variable para rastrear sesión válida
+
 // Control de mensajes procesados (evitar duplicados)
 const processedMessages = new Set();
 
@@ -139,11 +144,19 @@ const BOT_CONFIG = {
   COOLDOWN_MS: parseInt(process.env.BOT_COOLDOWN_MS) || 0,
   MAX_MESSAGES_PER_CHAT: parseInt(process.env.MAX_MESSAGES_PER_CHAT) || 10,
   TYPING_DELAY_MS: parseInt(process.env.TYPING_DELAY_MS) || 1000,
-  BOT_IA_ENDPOINT: process.env.BOT_IA_ENDPOINT || 'http://localhost:8081/api/chat'
+  BOT_IA_ENDPOINT: process.env.BOT_IA_ENDPOINT || 'http://localhost:8081/api/chat',
+  MESSAGE_GROUPING_DELAY: parseInt(process.env.MESSAGE_GROUPING_DELAY) || 3000, // 3 segundos para agrupar
+  MAX_GROUPED_MESSAGES: parseInt(process.env.MAX_GROUPED_MESSAGES) || 5 // Máximo 5 mensajes por grupo
 };
+
+// Sistema de agrupación de mensajes
+const messageGroups = new Map(); // jid -> { messages: [], timeout: timeoutId, timestamp: Date }
+const userCooldowns = new Map(); // jid -> timestamp del último procesamiento
 
 console.log('🤖 Bot automático:', autoBotEnabled ? 'ACTIVADO ✅' : 'DESACTIVADO ❌');
 console.log('🎯 Bot IA endpoint:', BOT_CONFIG.BOT_IA_ENDPOINT);
+console.log('🔗 Agrupamiento de mensajes:', `${BOT_CONFIG.MESSAGE_GROUPING_DELAY/1000}s delay, máx ${BOT_CONFIG.MAX_GROUPED_MESSAGES} msgs`);
+console.log('⏳ Cooldown entre respuestas:', `${BOT_CONFIG.COOLDOWN_MS/1000}s`);
 
 // ================================================
 // DIRECTORIO DE SESIÓN (AUTH STATE)
@@ -166,9 +179,17 @@ async function connectToWhatsApp() {
   try {
     console.log('🚀 Iniciando conexión con WhatsApp (Baileys)...');
     
-    // Verificar si hay archivos de sesión
-    const hasSession = fs.existsSync(SESSION_DIR) && fs.readdirSync(SESSION_DIR).length > 0;
-    console.log('📂 Sesión existente:', hasSession ? 'SÍ' : 'NO');
+    // Verificar si hay archivos de sesión válidos
+    const credsPath = path.join(SESSION_DIR, 'creds.json');
+    hasValidSession = fs.existsSync(credsPath);
+    
+    if (hasValidSession) {
+      console.log('� Sesión existente encontrada - Reconectando automáticamente');
+      // Reset QR attempts cuando hay sesión válida
+      qrAttempts = 0;
+    } else {
+      console.log('📂 Nueva sesión - Se requerirá QR');
+    }
     
     // Cargar autenticación guardada
     const { state, saveCreds: saveCredsFunc } = await useMultiFileAuthState(SESSION_DIR);
@@ -178,12 +199,20 @@ async function connectToWhatsApp() {
     const { version, isLatest } = await fetchLatestBaileysVersion();
     console.log(`📱 Usando WA v${version.join('.')}, es la última: ${isLatest}`);
     
-    // Crear socket de WhatsApp
+    // Crear socket de WhatsApp con configuración optimizada
     sock = makeWASocket({
       version,
       logger,
       auth: state,
-      defaultQueryTimeoutMs: undefined,
+      defaultQueryTimeoutMs: 60000, // 60 segundos timeout
+      keepAliveIntervalMs: 30000,   // Keep alive cada 30 segundos
+      connectTimeoutMs: 20000,      // 20 segundos para conectar
+      markOnlineOnConnect: true,    // Marcar como online al conectar
+      fireInitQueries: true,        // Enviar queries iniciales
+      shouldSyncHistoryMessage: (msg) => false, // No sincronizar historial completo
+      shouldIgnoreJid: (jid) => false,
+      printQRInTerminal: false,     // No imprimir QR en terminal
+      browser: ['WhatsApp Bot', 'Desktop', '4.0.0'], // Identificarse como Desktop
     });
     
     connectionStatus = 'connecting';
@@ -205,13 +234,32 @@ async function connectToWhatsApp() {
       
       // QR Code recibido
       if (qr) {
-        console.log('📱 QR Code recibido');
+        // Si tenemos sesión válida, no deberíamos estar viendo QRs
+        if (hasValidSession) {
+          console.log('⚠️ QR recibido pero tenemos sesión válida - posible problema de credenciales');
+          // Limpiar sesión corrupta y reintentar
+          if (fs.existsSync(SESSION_DIR)) {
+            fs.rmSync(SESSION_DIR, { recursive: true, force: true });
+            console.log('🗑️ Sesión corrupta eliminada - reiniciando...');
+            hasValidSession = false;
+            setTimeout(() => connectToWhatsApp(), 2000);
+            return;
+          }
+        }
+        
+        qrAttempts++;
+        console.log(`📱 QR Code recibido (Intento ${qrAttempts}/${MAX_QR_ATTEMPTS})`);
         connectionStatus = 'qr_received';
         
         // Convertir QR a base64 para el frontend
         try {
           qrCodeData = await QRCode.toDataURL(qr);
           console.log('✅ QR convertido a base64 (longitud:', qrCodeData.length, 'caracteres)');
+          console.log('📱 Escanea el QR desde WhatsApp > Dispositivos vinculados');
+          
+          if (qrAttempts >= MAX_QR_ATTEMPTS) {
+            console.log('⚠️ Máximo de QRs alcanzado - Se detendrá tras expiración');
+          }
         } catch (err) {
           console.error('❌ Error convirtiendo QR:', err);
         }
@@ -220,39 +268,81 @@ async function connectToWhatsApp() {
       // Conexión cerrada
       if (connection === 'close') {
         const statusCode = lastDisconnect?.error?.output?.statusCode;
-        const shouldReconnect = statusCode !== DisconnectReason.loggedOut && shouldAutoReconnect;
+        const errorMessage = lastDisconnect?.error?.message || 'Desconocida';
         
-        console.log('⚠️ Conexión cerrada, código:', statusCode, 'reconectar:', shouldReconnect);
-        console.log('   Razón:', lastDisconnect?.error?.message || 'Desconocida');
+        console.log('⚠️ Conexión cerrada, código:', statusCode, 'reconectar:', shouldAutoReconnect);
+        console.log('   Razón:', errorMessage);
         
         // Limpiar estado
         connectionStatus = 'disconnected';
         isClientReady = false;
         qrCodeData = null;
         
+        // Determinar tipo de desconexión y estrategia
+        let reconnectDelay = 3000; // Default 3 segundos
+        let shouldAttemptReconnect = shouldAutoReconnect;
+        
+        // Manejar QR expirado específicamente
+        if (statusCode === 408 && errorMessage.includes('QR refs attempts ended')) {
+          console.log(`🔄 QR expirado (${qrAttempts}/${MAX_QR_ATTEMPTS} intentos)`);
+          
+          if (qrAttempts >= MAX_QR_ATTEMPTS) {
+            console.log('🛑 Deteniendo reconexión automática para evitar spam de QRs');
+            console.log('💡 Para reactivar: POST /api/whatsapp/initialize o reinicia el servidor');
+            shouldAutoReconnect = false;
+            shouldAttemptReconnect = false;
+          } else {
+            // Backoff progresivo para QRs
+            reconnectDelay = Math.min(5000 * qrAttempts, 30000);
+          }
+        }
         // Manejar diferentes tipos de desconexión
-        if (statusCode === DisconnectReason.badSession) {
+        else if (statusCode === DisconnectReason.badSession) {
           console.log('🗑️ Sesión corrupta detectada, limpiando...');
           if (fs.existsSync(SESSION_DIR)) {
             fs.rmSync(SESSION_DIR, { recursive: true, force: true });
             console.log('✅ Sesión corrupta eliminada');
           }
-        } else if (statusCode === DisconnectReason.connectionClosed) {
-          console.log('🔌 Conexión cerrada por WhatsApp - posible timeout o límite');
-        } else if (statusCode === DisconnectReason.connectionLost) {
-          console.log('📡 Conexión perdida - problema de red');
-        } else if (statusCode === DisconnectReason.connectionReplaced) {
+          hasValidSession = false;
+          qrAttempts = 0; // Reset QR attempts para nueva sesión
+        } 
+        else if (statusCode === DisconnectReason.connectionClosed) {
+          console.log('🔌 Conexión cerrada por WhatsApp - reconectando con sesión existente');
+          reconnectDelay = hasValidSession ? 5000 : 3000; // Delay menor si hay sesión
+        } 
+        else if (statusCode === DisconnectReason.connectionLost) {
+          console.log('📡 Conexión perdida - problema de red, reconectando...');
+          reconnectDelay = hasValidSession ? 5000 : 3000;
+        } 
+        else if (statusCode === DisconnectReason.connectionReplaced) {
           console.log('📱 Conexión reemplazada - otro dispositivo se conectó');
-          shouldAutoReconnect = false; // No reconectar automáticamente
-        } else if (statusCode === DisconnectReason.timedOut) {
-          console.log('⏰ Timeout de conexión');
-        } else if (statusCode === DisconnectReason.restartRequired) {
+          shouldAutoReconnect = false;
+          shouldAttemptReconnect = false;
+          hasValidSession = false; // Marcar sesión como inválida
+        } 
+        else if (statusCode === DisconnectReason.timedOut) {
+          console.log('⏰ Timeout de conexión - reintentar');
+          reconnectDelay = 10000; // Delay mayor para timeouts
+        } 
+        else if (statusCode === DisconnectReason.restartRequired) {
           console.log('🔄 Reinicio requerido por WhatsApp');
+          reconnectDelay = 5000;
+        }
+        else if (statusCode === DisconnectReason.loggedOut) {
+          console.log('🚪 Desconectado por logout - limpiar sesión');
+          if (fs.existsSync(SESSION_DIR)) {
+            fs.rmSync(SESSION_DIR, { recursive: true, force: true });
+            console.log('✅ Sesión eliminada tras logout');
+          }
+          hasValidSession = false;
+          shouldAutoReconnect = false;
+          shouldAttemptReconnect = false;
         }
         
-        if (shouldReconnect) {
-          console.log('🔄 Reconectando en 3 segundos...');
-          setTimeout(() => connectToWhatsApp(), 3000);
+        if (shouldAttemptReconnect) {
+          console.log(`🔄 Reconectando en ${reconnectDelay/1000} segundos...`);
+          console.log(`   Estrategia: ${hasValidSession ? 'Con sesión existente' : 'Nueva sesión (QR requerido)'}`);
+          setTimeout(() => connectToWhatsApp(), reconnectDelay);
         } else {
           console.log('🔴 No se reconectará automáticamente');
           sock = null; // Limpiar socket
@@ -267,7 +357,13 @@ async function connectToWhatsApp() {
         qrCodeData = null;
         botReadyTime = new Date();
         
+        // Marcar sesión como válida y reiniciar contadores
+        hasValidSession = true;
+        qrAttempts = 0;
+        shouldAutoReconnect = true;
+        
         console.log('🤖 Bot listo para recibir mensajes desde:', botReadyTime.toISOString());
+        console.log('🔐 Sesión autenticada y guardada - Reconexiones futuras serán automáticas');
       }
     });
     
@@ -282,6 +378,23 @@ async function connectToWhatsApp() {
         await handleIncomingMessage(msg);
       }
     });
+    
+    // Sistema de keepalive para mantener conexión estable
+    const keepAliveInterval = setInterval(() => {
+      if (sock && isClientReady) {
+        try {
+          // Enviar ping silencioso para mantener conexión
+          sock.query({ tag: 'ping', attrs: {} }).catch(() => {
+            // Ignorar errores de ping, solo es para keepalive
+          });
+        } catch (err) {
+          // Ignorar errores, el ping es solo para mantener viva la conexión
+        }
+      } else {
+        // Limpiar interval si no hay conexión
+        clearInterval(keepAliveInterval);
+      }
+    }, 30000); // Cada 30 segundos
     
   } catch (error) {
     console.error('❌ Error conectando a WhatsApp:', error);
@@ -354,16 +467,126 @@ async function handleIncomingMessage(msg) {
       toDelete.forEach(id => processedMessages.delete(id));
     }
     
-      botStats.messagesReceived++;    
-      if (!autoBotEnabled) {
-        return;
-      }
+    botStats.messagesReceived++;    
+    if (!autoBotEnabled) {
+      return;
+    }
     
-    // Procesar con el bot IA
-    await processMessageWithBot(from, messageText, msg);
+    // **NUEVA LÓGICA: Agrupar mensajes consecutivos**
+    await groupAndProcessMessage(from, messageText, msg);
     
   } catch (error) {
     console.error('❌ Error manejando mensaje:', error);
+    botStats.errors++;
+  }
+}
+
+// ================================================
+// SISTEMA DE AGRUPACIÓN DE MENSAJES
+// ================================================
+
+async function groupAndProcessMessage(chatId, messageText, originalMessage) {
+  try {
+    const now = Date.now();
+    
+    // Verificar cooldown por usuario
+    const lastProcessed = userCooldowns.get(chatId);
+    if (lastProcessed && (now - lastProcessed) < BOT_CONFIG.COOLDOWN_MS) {
+      console.log(`⏳ Usuario ${chatId} en cooldown, ignorando mensaje`);
+      return;
+    }
+    
+    // Obtener o crear grupo de mensajes para este chat
+    let group = messageGroups.get(chatId);
+    
+    if (!group) {
+      // Crear nuevo grupo
+      group = {
+        messages: [],
+        timeout: null,
+        timestamp: now,
+        chatId: chatId,
+        originalMessage: originalMessage
+      };
+      messageGroups.set(chatId, group);
+    }
+    
+    // Agregar mensaje al grupo
+    group.messages.push({
+      text: messageText.trim(),
+      timestamp: now
+    });
+    
+    console.log(`📥 Mensaje agrupado de ${chatId}: "${messageText}" (${group.messages.length}/${BOT_CONFIG.MAX_GROUPED_MESSAGES})`);
+    
+    // Limpiar timeout anterior si existe
+    if (group.timeout) {
+      clearTimeout(group.timeout);
+    }
+    
+    // Si alcanzamos el máximo de mensajes, procesar inmediatamente
+    if (group.messages.length >= BOT_CONFIG.MAX_GROUPED_MESSAGES) {
+      console.log(`📊 Máximo de mensajes alcanzado para ${chatId}, procesando inmediatamente`);
+      await processGroupedMessages(chatId);
+      return;
+    }
+    
+    // Configurar nuevo timeout para procesar el grupo
+    group.timeout = setTimeout(async () => {
+      await processGroupedMessages(chatId);
+    }, BOT_CONFIG.MESSAGE_GROUPING_DELAY);
+    
+    console.log(`⏱️ Timeout configurado para ${chatId} - ${BOT_CONFIG.MESSAGE_GROUPING_DELAY/1000}s para agrupar más mensajes`);
+    
+  } catch (error) {
+    console.error('❌ Error agrupando mensaje:', error);
+    // En caso de error, procesar mensaje individual
+    await processMessageWithBot(chatId, messageText, originalMessage);
+  }
+}
+
+async function processGroupedMessages(chatId) {
+  try {
+    const group = messageGroups.get(chatId);
+    if (!group || group.messages.length === 0) {
+      return;
+    }
+    
+    // Remover grupo del mapa
+    messageGroups.delete(chatId);
+    
+    // Limpiar timeout si existe
+    if (group.timeout) {
+      clearTimeout(group.timeout);
+    }
+    
+    // Construir contexto completo
+    const contextualMessage = group.messages
+      .map(msg => msg.text)
+      .join(' '); // Unir mensajes con espacio
+    
+    const messageCount = group.messages.length;
+    const timeSpan = Date.now() - group.timestamp;
+    
+    console.log(`🔗 Procesando ${messageCount} mensajes agrupados de ${chatId} (${timeSpan}ms span)`);
+    console.log(`📝 Contexto completo: "${contextualMessage.substring(0, 100)}${contextualMessage.length > 100 ? '...' : ''}"`);
+    
+    // Procesar mensaje completo con contexto
+    await processMessageWithBot(chatId, contextualMessage, group.originalMessage);
+    
+    // Actualizar cooldown del usuario
+    userCooldowns.set(chatId, Date.now());
+    
+    // Limpiar cooldowns antiguos (mayores a 1 hora)
+    const oneHourAgo = Date.now() - (60 * 60 * 1000);
+    for (const [userId, timestamp] of userCooldowns.entries()) {
+      if (timestamp < oneHourAgo) {
+        userCooldowns.delete(userId);
+      }
+    }
+    
+  } catch (error) {
+    console.error('❌ Error procesando mensajes agrupados:', error);
     botStats.errors++;
   }
 }
@@ -673,12 +896,20 @@ app.get('/api/whatsapp/status', async (req, res) => {
       isReady: isClientReady,
       qrCode: qrCodeData,
       hasSession: hasSession,
+      hasValidSession: hasValidSession,
       autoBotEnabled: autoBotEnabled,
+      qrAttempts: qrAttempts,
+      maxQrAttempts: MAX_QR_ATTEMPTS,
+      shouldAutoReconnect: shouldAutoReconnect,
       stats: {
         ...botStats,
         uptime: Math.floor((Date.now() - botStats.startTime.getTime()) / 1000)
       },
-      message: 'WhatsApp Auto-Bot Service (Baileys)'
+      message: connectionStatus === 'qr_received' && qrAttempts >= MAX_QR_ATTEMPTS - 1 
+        ? 'QR generado - Escanéalo desde WhatsApp > Dispositivos vinculados'
+        : hasValidSession && !isClientReady
+        ? 'Reconectando con sesión existente...'
+        : 'WhatsApp Auto-Bot Service (Baileys)'
     });
   } catch (error) {
     console.error('❌ Error en /status:', error);
@@ -689,15 +920,41 @@ app.get('/api/whatsapp/status', async (req, res) => {
 // Inicializar conexión
 app.post('/api/whatsapp/initialize', async (req, res) => {
   try {
+    console.log('🔄 Inicializando WhatsApp desde API...');
+    
     if (isClientReady) {
-      return res.json({ success: true, message: 'WhatsApp ya está conectado' });
+      return res.json({ 
+        success: true, 
+        message: 'WhatsApp ya está conectado',
+        qrAttempts: qrAttempts,
+        hasValidSession: hasValidSession,
+        shouldAutoReconnect: shouldAutoReconnect
+      });
     }
     
-    // Reactivar reconexión automática al inicializar
+    // Detectar si hay sesión existente
+    const credsPath = path.join(SESSION_DIR, 'creds.json');
+    const hasExistingSession = fs.existsSync(credsPath);
+    
+    // Reiniciar contadores de QR y reactivar reconexión automática
     shouldAutoReconnect = true;
+    qrAttempts = 0;
+    hasValidSession = hasExistingSession;
+    
+    console.log('🔄 Contadores reiniciados - Reactivando reconexión automática');
+    console.log(`📁 Sesión existente: ${hasExistingSession ? 'SÍ' : 'NO'}`);
     
     await connectToWhatsApp();
-    res.json({ success: true, message: 'Conexión iniciada' });
+    
+    res.json({ 
+      success: true, 
+      message: hasExistingSession 
+        ? 'Reconectando con sesión existente...' 
+        : 'Nueva conexión iniciada - Revisa los logs para el QR',
+      qrAttempts: qrAttempts,
+      hasValidSession: hasValidSession,
+      shouldAutoReconnect: shouldAutoReconnect
+    });
   } catch (error) {
     console.error('❌ Error inicializando:', error);
     res.status(500).json({ error: error.message });
@@ -826,7 +1083,15 @@ app.get('/api/whatsapp/info', async (req, res) => {
       isReady: isClientReady,
       autoBotEnabled: autoBotEnabled,
       botReadyTime: botReadyTime,
-      serverTime: new Date().toISOString()
+      serverTime: new Date().toISOString(),
+      config: {
+        ...BOT_CONFIG,
+        messageGrouping: {
+          enabled: true,
+          delayMs: BOT_CONFIG.MESSAGE_GROUPING_DELAY,
+          maxMessages: BOT_CONFIG.MAX_GROUPED_MESSAGES
+        }
+      }
     });
   } catch (error) {
     console.error('❌ Error obteniendo info:', error);
@@ -858,6 +1123,40 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     service: 'WhatsApp Bot (Baileys)'
   });
+});
+
+// Endpoint para monitorear agrupamiento de mensajes
+app.get('/api/whatsapp/message-groups', async (req, res) => {
+  try {
+    const activeGroups = [];
+    
+    for (const [chatId, group] of messageGroups.entries()) {
+      activeGroups.push({
+        chatId,
+        messageCount: group.messages.length,
+        firstMessageTime: new Date(group.timestamp).toISOString(),
+        timeRemaining: group.timeout ? Math.max(0, group.timestamp + BOT_CONFIG.MESSAGE_GROUPING_DELAY - Date.now()) : 0,
+        messages: group.messages.map(msg => ({
+          text: msg.text.substring(0, 50) + (msg.text.length > 50 ? '...' : ''),
+          timestamp: new Date(msg.timestamp).toISOString()
+        }))
+      });
+    }
+    
+    res.json({
+      config: {
+        groupingDelayMs: BOT_CONFIG.MESSAGE_GROUPING_DELAY,
+        maxGroupedMessages: BOT_CONFIG.MAX_GROUPED_MESSAGES,
+        cooldownMs: BOT_CONFIG.COOLDOWN_MS
+      },
+      activeGroups,
+      totalActiveGroups: messageGroups.size,
+      userCooldowns: userCooldowns.size
+    });
+  } catch (error) {
+    console.error('❌ Error obteniendo grupos de mensajes:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // ================================================

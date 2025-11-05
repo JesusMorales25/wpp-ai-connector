@@ -18,31 +18,39 @@ const P = require('pino');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Logger de Baileys (silencioso en producción)
-const logger = P({ level: process.env.LOG_LEVEL || 'silent' });
-
 // Configuración específica para Railway/Render/Producción
 const isProduction = process.env.NODE_ENV === 'production';
 
 // ================================================
-// SISTEMA DE LOGS OPTIMIZADO
+// SISTEMA DE LOGS UNIFICADO
 // ================================================
-const LOG_LEVELS = {
-  ERROR: 0,    // Solo errores críticos
-  WARN: 1,     // Advertencias + errores
-  INFO: 2,     // Información importante + warn + error
-  DEBUG: 3,    // Todo (desarrollo)
-  VERBOSE: 4   // Absolutamente todo
+// LOG_LEVEL controla AMBOS: Baileys (librería) y la app
+// Valores: silent, error, warn, info, debug, trace
+const logLevelEnv = (process.env.LOG_LEVEL || 'silent').toLowerCase();
+
+// Mapeo de niveles de log de usuario a niveles numéricos
+const LOG_LEVEL_MAP = {
+  'silent': 0,   // Sin logs (solo Baileys silencioso)
+  'error': 1,    // Solo errores críticos
+  'warn': 2,     // Advertencias + errores  
+  'info': 3,     // Información importante (default producción)
+  'debug': 4,    // Logs detallados (default desarrollo)
+  'trace': 5     // Absolutamente todo
 };
 
-const currentLogLevel = LOG_LEVELS[process.env.APP_LOG_LEVEL] ?? (isProduction ? LOG_LEVELS.INFO : LOG_LEVELS.DEBUG);
+// Nivel actual basado en LOG_LEVEL
+const currentLogLevel = LOG_LEVEL_MAP[logLevelEnv] ?? (isProduction ? LOG_LEVEL_MAP.info : LOG_LEVEL_MAP.debug);
 
+// Logger de Baileys con el nivel configurado
+const logger = P({ level: logLevelEnv === 'silent' ? 'silent' : (logLevelEnv === 'trace' ? 'trace' : 'warn') });
+
+// Sistema de logs de la aplicación
 const log = {
-  error: (...args) => currentLogLevel >= LOG_LEVELS.ERROR && console.error('❌', ...args),
-  warn: (...args) => currentLogLevel >= LOG_LEVELS.WARN && console.warn('⚠️', ...args),
-  info: (...args) => currentLogLevel >= LOG_LEVELS.INFO && console.log('ℹ️', ...args),
-  debug: (...args) => currentLogLevel >= LOG_LEVELS.DEBUG && console.log('🔍', ...args),
-  verbose: (...args) => currentLogLevel >= LOG_LEVELS.VERBOSE && console.log('📝', ...args)
+  error: (...args) => currentLogLevel >= LOG_LEVEL_MAP.error && console.error('❌', ...args),
+  warn: (...args) => currentLogLevel >= LOG_LEVEL_MAP.warn && console.warn('⚠️', ...args),
+  info: (...args) => currentLogLevel >= LOG_LEVEL_MAP.info && console.log('ℹ️', ...args),
+  debug: (...args) => currentLogLevel >= LOG_LEVEL_MAP.debug && console.log('🔍', ...args),
+  trace: (...args) => currentLogLevel >= LOG_LEVEL_MAP.trace && console.log('📝', ...args)
 };
 
 // ================================================
@@ -272,7 +280,7 @@ async function connectToWhatsApp() {
       
       // Solo loguear cambios importantes (no updates vacíos)
       if (connection || qr || lastDisconnect) {
-        log.verbose('Connection update:', { 
+        log.trace('Connection update:', { 
           connection, 
           hasQR: !!qr,
           statusCode: lastDisconnect?.error?.output?.statusCode,
@@ -632,7 +640,7 @@ async function groupAndProcessMessage(chatId, messageText, originalMessage) {
       await processGroupedMessages(chatId);
     }, BOT_CONFIG.MESSAGE_GROUPING_DELAY);
     
-    log.verbose(`Timeout ${BOT_CONFIG.MESSAGE_GROUPING_DELAY/1000}s configurado`);
+    log.trace(`Timeout ${BOT_CONFIG.MESSAGE_GROUPING_DELAY/1000}s configurado`);
     
   } catch (error) {
     console.error('❌ Error agrupando mensaje:', error);

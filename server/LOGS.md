@@ -6,15 +6,29 @@ Los servicios cloud cobran por almacenamiento de logs. Este sistema te permite c
 
 ## 🔧 Configuración
 
-Agrega en tus **variables de entorno** (Render/Railway):
+**YA TIENES** la variable `LOG_LEVEL` configurada. Solo necesitas cambiar su valor:
 
 ```bash
-APP_LOG_LEVEL=ERROR
+LOG_LEVEL=silent
 ```
+
+Esta variable controla **TODOS** los logs (Baileys + App).
 
 ## 📋 Niveles Disponibles
 
-### `ERROR` - Mínimo (Recomendado para producción con presupuesto bajo)
+### `silent` - Sin logs (MÁXIMO AHORRO 💰)
+✅ **Casi sin logs**
+- Solo errores críticos de consola
+- Sin logs de Baileys (librería WhatsApp)
+- Sin logs de aplicación
+
+**Logs por hora**: ~5-10 líneas
+**Ahorro**: 99% menos logs
+**💰 Recomendado**: Para producción estable con bajo presupuesto
+
+---
+
+### `error` - Mínimo (Producción con presupuesto bajo)
 ✅ **Solo errores críticos**
 - ❌ Errores de conexión
 - ❌ Fallos al enviar mensajes
@@ -25,19 +39,20 @@ APP_LOG_LEVEL=ERROR
 
 ---
 
-### `WARN` - Advertencias (Producción equilibrada)
-✅ Todo lo de ERROR +
+### `warn` - Advertencias (Producción equilibrada)
+✅ Todo lo de error +
 - ⚠️ QR código regenerado
 - ⚠️ Reconexiones
 - ⚠️ Límites alcanzados
+- ⚠️ Logs importantes de Baileys
 
 **Logs por hora**: ~50-100 líneas
 **Ahorro**: 80% menos logs
 
 ---
 
-### `INFO` - Información Importante (Default producción)
-✅ Todo lo de WARN +
+### `info` - Información Importante (Default producción)
+✅ Todo lo de warn +
 - ℹ️ Mensajes enviados exitosamente
 - ℹ️ Grupos de mensajes procesados
 - ℹ️ Conexión establecida/cerrada
@@ -48,8 +63,8 @@ APP_LOG_LEVEL=ERROR
 
 ---
 
-### `DEBUG` - Desarrollo (Default en local)
-✅ Todo lo de INFO +
+### `debug` - Desarrollo (Default en local)
+✅ Todo lo de info +
 - 🔍 Cada mensaje agrupado
 - 🔍 Timeouts configurados
 - 🔍 Contexto de mensajes
@@ -60,11 +75,12 @@ APP_LOG_LEVEL=ERROR
 
 ---
 
-### `VERBOSE` - Todo (Solo para debugging)
+### `trace` - Todo (Solo para debugging)
 ✅ **ABSOLUTAMENTE TODO**
 - 📝 Cada actualización de conexión
 - 📝 Cada request HTTP
-- 📝 Todos los detalles internos
+- 📝 Todos los detalles internos de Baileys
+- 📝 Logs de red
 
 **Logs por hora**: 2000+ líneas
 **⚠️ ADVERTENCIA**: Solo usar temporalmente para resolver problemas complejos
@@ -77,13 +93,17 @@ APP_LOG_LEVEL=ERROR
 
 | Nivel | Líneas/día | Costo mensual estimado* |
 |-------|------------|-------------------------|
-| VERBOSE | ~60,000 | $15-20 |
-| DEBUG | ~30,000 | $8-12 |
-| INFO | ~15,000 | $4-6 |
-| WARN | ~6,000 | $2-3 |
-| ERROR | ~3,000 | $1-2 |
+| trace | ~60,000 | $15-20 |
+| debug | ~30,000 | $8-12 |
+| info | ~15,000 | $4-6 |
+| warn | ~6,000 | $2-3 |
+| error | ~3,000 | $1-2 |
+| **silent** | **~300** | **$0.50** 💰 |
 
 *Basado en precios de Render (aprox. $0.00033 por MB de logs)
+
+**🎯 TU CONFIGURACIÓN ACTUAL: `LOG_LEVEL=silent`** ✅
+Ya tienes el máximo ahorro configurado.
 
 ---
 
@@ -92,18 +112,19 @@ APP_LOG_LEVEL=ERROR
 ### En Render:
 1. Dashboard → Tu servicio
 2. Environment → Edit
-3. Agregar/editar: `APP_LOG_LEVEL=ERROR`
-4. Save Changes (auto-redeploy)
+3. Cambiar: `LOG_LEVEL=silent` (ya existe)
+4. Opciones: `silent`, `error`, `warn`, `info`, `debug`, `trace`
+5. Save Changes (auto-redeploy)
 
 ### En Railway:
 1. Dashboard → Tu proyecto
-2. Variables → New Variable
-3. `APP_LOG_LEVEL` = `ERROR`
+2. Variables → Buscar `LOG_LEVEL`
+3. Cambiar valor a: `silent`, `error`, `warn`, etc.
 4. Guardar (auto-redeploy)
 
 ### En Local (.env):
 ```bash
-APP_LOG_LEVEL=DEBUG
+LOG_LEVEL=debug
 ```
 
 ---
@@ -122,15 +143,25 @@ railway logs --follow
 
 ## 🎯 Recomendaciones
 
-**Producción estable**: `WARN` o `INFO`
-**Producción con bajo presupuesto**: `ERROR`
-**Desarrollo local**: `DEBUG`
-**Debugging problemas**: `VERBOSE` (temporal)
+**Producción estable + ahorro**: `silent` ← **TU CONFIGURACIÓN ACTUAL** ✅
+**Producción con logs mínimos**: `error`
+**Producción con más contexto**: `warn` o `info`
+**Desarrollo local**: `debug`
+**Debugging problemas**: `trace` (temporal)
 
 ---
 
-## 🔄 Sin Configurar
+## ⚠️ Importante
 
-Si no estableces `APP_LOG_LEVEL`:
-- **Producción** (`NODE_ENV=production`): `INFO`
-- **Desarrollo**: `DEBUG`
+**Tu configuración actual `LOG_LEVEL=silent` es PERFECTA** para:
+- ✅ Bot funcionando correctamente
+- ✅ Producción estable
+- ✅ Máximo ahorro de costos
+- ✅ Sin necesidad de debugging
+
+Solo cambia a `error` o `warn` si necesitas:
+- 🔍 Investigar problemas
+- 📊 Ver estadísticas de uso
+- 🐛 Debugging temporal
+
+**Después de resolver el problema, vuelve a `silent`**

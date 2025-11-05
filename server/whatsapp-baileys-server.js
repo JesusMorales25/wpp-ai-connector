@@ -293,21 +293,10 @@ async function connectToWhatsApp() {
           qrCodeData = await QRCode.toDataURL(qr);
           console.log('✅ QR convertido a base64 (longitud:', qrCodeData.length, 'caracteres)');
           console.log('📱 Escanea el QR desde WhatsApp > Dispositivos vinculados');
-          console.log(`⏰ QR válido por ~60 segundos - Se renovará automáticamente`);
+          console.log(`⏰ QR válido por ~60 segundos - Baileys lo renovará automáticamente`);
           
-          // Configurar auto-renovación del QR cada 50 segundos (antes de que expire)
-          qrRefreshInterval = setInterval(() => {
-            if (!isClientReady && qrAttempts < MAX_QR_ATTEMPTS) {
-              console.log('🔄 Auto-renovando QR...');
-              // El QR se renovará automáticamente cuando Baileys detecte expiración
-            } else {
-              // Limpiar interval si ya está conectado o excedió límite
-              if (qrRefreshInterval) {
-                clearInterval(qrRefreshInterval);
-                qrRefreshInterval = null;
-              }
-            }
-          }, 50000); // 50 segundos
+          // NO configurar interval manual - dejar que Baileys maneje la renovación
+          // Baileys automáticamente genera nuevos QRs cuando expiran
           
         } catch (err) {
           console.error('❌ Error convirtiendo QR:', err);
@@ -372,16 +361,16 @@ async function connectToWhatsApp() {
           reconnectDelay = hasValidSession ? 5000 : 3000;
         } 
         else if (statusCode === DisconnectReason.connectionReplaced || statusCode === 440) {
-          console.log('📱 Conexión reemplazada - otro dispositivo se conectó');
+          console.log('📱 Conexión reemplazada o conflicto detectado');
+          console.log('⚠️ Posible causa: Múltiples intentos de conexión simultáneos');
+          
+          // NO eliminar sesión, solo desconectar temporalmente
           shouldAutoReconnect = false;
           shouldAttemptReconnect = false;
-          hasValidSession = false; // Marcar sesión como inválida
           
-          // Limpiar sesión para evitar conflictos futuros
-          if (fs.existsSync(SESSION_DIR)) {
-            fs.rmSync(SESSION_DIR, { recursive: true, force: true });
-            console.log('🗑️ Sesión eliminada para evitar conflictos de dispositivo');
-          }
+          // Mantener sesión válida para futuros intentos manuales
+          console.log('💡 Sesión mantenida - Usa POST /api/whatsapp/initialize para reintentar');
+          console.log('� O usa POST /api/whatsapp/reset-session si persiste el problema');
         } 
         else if (statusCode === DisconnectReason.timedOut) {
           console.log('⏰ Timeout de conexión - reintentar');
@@ -420,13 +409,6 @@ async function connectToWhatsApp() {
         qrCodeData = null;
         botReadyTime = new Date();
         
-        // Limpiar interval de QR auto-renovación
-        if (qrRefreshInterval) {
-          clearInterval(qrRefreshInterval);
-          qrRefreshInterval = null;
-          console.log('🔄 Auto-renovación de QR detenida - Conexión establecida');
-        }
-        
         // Marcar sesión como válida y reiniciar contadores
         hasValidSession = true;
         qrAttempts = 0;
@@ -434,21 +416,30 @@ async function connectToWhatsApp() {
         isConnecting = false;
         
         console.log('🤖 Bot listo para recibir mensajes desde:', botReadyTime.toISOString());
-        console.log('🔐 Sesión única autenticada y guardada');
-        console.log('🛡️ Esta sesión eliminará automáticamente otras conexiones concurrentes');
+        console.log('🔐 Sesión autenticada y guardada correctamente');
+        console.log('� Bot esperando mensajes...');
         
-        // Forzar eliminación de otras sesiones potenciales enviando presence
-        try {
-          await sock.sendPresenceUpdate('available');
-          console.log('📡 Presencia establecida - Otras sesiones serán desconectadas automáticamente');
-        } catch (err) {
-          console.warn('⚠️ No se pudo establecer presencia:', err.message);
-        }
+        // Enviar presence UNA SOLA VEZ de forma suave (sin await para no bloquear)
+        sock.sendPresenceUpdate('available').catch((err) => {
+          console.warn('⚠️ No se pudo establecer presencia (ignorado):', err.message);
+        });
       }
     });
     
-    // Guardar credenciales cuando cambien
-    sock.ev.on('creds.update', saveCreds);
+    // Guardar credenciales cuando cambien (con manejo de errores)
+    sock.ev.on('creds.update', async () => {
+      try {
+        // Asegurar que el directorio existe antes de guardar
+        if (!fs.existsSync(SESSION_DIR)) {
+          fs.mkdirSync(SESSION_DIR, { recursive: true });
+          console.log('📁 Directorio de sesión recreado para guardar credenciales');
+        }
+        await saveCreds();
+      } catch (err) {
+        console.error('❌ Error guardando credenciales:', err.message);
+        // No hacer nada más, solo log del error
+      }
+    });
     
     // Manejo de mensajes
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
@@ -459,34 +450,18 @@ async function connectToWhatsApp() {
       }
     });
     
-    // Sistema de keepalive agresivo para mantener conexión estable
+    // Sistema de keepalive PASIVO para mantener conexión estable (SIN reconexiones automáticas)
     const keepAliveInterval = setInterval(async () => {
       if (sock && isClientReady) {
         try {
-          // Múltiples estrategias de keepalive
-          
-          // 1. Enviar presence update
-          await sock.sendPresenceUpdate('available').catch(() => {});
-          
-          // 2. Query de ping silencioso
-          sock.query({ tag: 'ping', attrs: {} }).catch(() => {});
-          
-          // 3. Verificar estado de la conexión
-          if (sock.ws?.readyState === sock.ws?.CLOSED) {
-            console.log('⚠️ WebSocket cerrado detectado en keepalive');
-            if (shouldAutoReconnect) {
-              console.log('🔄 Intentando reconexión desde keepalive...');
-              setTimeout(() => connectToWhatsApp(), 1000);
-            }
-          }
+          // Solo enviar presence update suave - NO forzar reconexiones
+          await sock.sendPresenceUpdate('available').catch(() => {
+            // Ignorar errores de presence, no reconectar
+          });
           
         } catch (err) {
-          console.warn('⚠️ Error en keepalive:', err.message);
-          // Si hay error en keepalive, intentar reconectar
-          if (shouldAutoReconnect && hasValidSession) {
-            console.log('🔄 Reconectando debido a error en keepalive...');
-            setTimeout(() => connectToWhatsApp(), 2000);
-          }
+          // Solo log, NO reconectar desde keepalive
+          console.warn('⚠️ Error en keepalive (ignorado):', err.message);
         }
       } else {
         // Limpiar interval si no hay conexión válida
@@ -495,7 +470,7 @@ async function connectToWhatsApp() {
           console.log('🔄 Keepalive detenido - reconexión automática deshabilitada');
         }
       }
-    }, 15000); // Cada 15 segundos (más frecuente)
+    }, 30000); // Cada 30 segundos (menos agresivo)
     
   } catch (error) {
     console.error('❌ Error conectando a WhatsApp:', error);

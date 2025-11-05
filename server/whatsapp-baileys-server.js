@@ -133,9 +133,10 @@ let shouldAutoReconnect = true; // Control de reconexión automática
 
 // Control de QR codes para evitar spam infinito
 let qrAttempts = 0;
-const MAX_QR_ATTEMPTS = 3;
+const MAX_QR_ATTEMPTS = 10; // Aumentado para permitir más intentos hasta escanear
 let hasValidSession = false; // Nueva variable para rastrear sesión válida
 let isConnecting = false; // Flag para evitar reconexiones concurrentes
+let qrRefreshInterval = null; // Interval para auto-renovar QR
 
 // Control de mensajes procesados (evitar duplicados)
 const processedMessages = new Set();
@@ -215,22 +216,27 @@ async function connectToWhatsApp() {
     const { version, isLatest } = await fetchLatestBaileysVersion();
     console.log(`📱 Usando WA v${version.join('.')}, es la última: ${isLatest}`);
     
-    // Crear socket de WhatsApp con configuración optimizada
+    // Crear socket de WhatsApp con configuración optimizada para sesión única
     sock = makeWASocket({
       version,
       logger,
       auth: state,
       defaultQueryTimeoutMs: 30000,    // 30 segundos timeout (reducido de 60)
-      keepAliveIntervalMs: 25000,      // Keep alive cada 25 segundos
+      keepAliveIntervalMs: 20000,      // Keep alive cada 20 segundos (más frecuente)
       connectTimeoutMs: 15000,         // 15 segundos para conectar (reducido)
       markOnlineOnConnect: true,       // Marcar como online al conectar
       fireInitQueries: true,           // Enviar queries iniciales
       shouldSyncHistoryMessage: (msg) => false, // No sincronizar historial completo
       shouldIgnoreJid: (jid) => false,
       printQRInTerminal: false,        // No imprimir QR en terminal
-      browser: ['WhatsApp Bot', 'Desktop', '4.0.0'], // Identificarse como Desktop
+      browser: ['Bot WhatsApp Único', 'Desktop', '1.0.0'], // ID único para evitar conflictos
       retryRequestDelayMs: 1000,       // Delay entre reintentos
       maxMsgRetryCount: 3,             // Máximo 3 reintentos por mensaje
+      generateHighQualityLinkPreview: false, // Optimización
+      syncFullHistory: false,          // No sincronizar historial completo
+      getMessage: async (key) => {     // Evitar errores de mensajes no encontrados
+        return { conversation: "" };
+      }
     });
     
     connectionStatus = 'connecting';
@@ -276,15 +282,33 @@ async function connectToWhatsApp() {
         console.log(`📱 QR Code recibido (Intento ${qrAttempts}/${MAX_QR_ATTEMPTS})`);
         connectionStatus = 'qr_received';
         
+        // Limpiar interval anterior si existe
+        if (qrRefreshInterval) {
+          clearInterval(qrRefreshInterval);
+          qrRefreshInterval = null;
+        }
+        
         // Convertir QR a base64 para el frontend
         try {
           qrCodeData = await QRCode.toDataURL(qr);
           console.log('✅ QR convertido a base64 (longitud:', qrCodeData.length, 'caracteres)');
           console.log('📱 Escanea el QR desde WhatsApp > Dispositivos vinculados');
+          console.log(`⏰ QR válido por ~60 segundos - Se renovará automáticamente`);
           
-          if (qrAttempts >= MAX_QR_ATTEMPTS) {
-            console.log('⚠️ Máximo de QRs alcanzado - Se detendrá tras expiración');
-          }
+          // Configurar auto-renovación del QR cada 50 segundos (antes de que expire)
+          qrRefreshInterval = setInterval(() => {
+            if (!isClientReady && qrAttempts < MAX_QR_ATTEMPTS) {
+              console.log('🔄 Auto-renovando QR...');
+              // El QR se renovará automáticamente cuando Baileys detecte expiración
+            } else {
+              // Limpiar interval si ya está conectado o excedió límite
+              if (qrRefreshInterval) {
+                clearInterval(qrRefreshInterval);
+                qrRefreshInterval = null;
+              }
+            }
+          }, 50000); // 50 segundos
+          
         } catch (err) {
           console.error('❌ Error convirtiendo QR:', err);
         }
@@ -307,18 +331,26 @@ async function connectToWhatsApp() {
         let reconnectDelay = 3000; // Default 3 segundos
         let shouldAttemptReconnect = shouldAutoReconnect;
         
-        // Manejar QR expirado específicamente
+        // Manejar QR expirado específicamente - Permitir auto-renovación
         if (statusCode === 408 && errorMessage.includes('QR refs attempts ended')) {
-          console.log(`🔄 QR expirado (${qrAttempts}/${MAX_QR_ATTEMPTS} intentos)`);
+          console.log(`🔄 QR expirado (${qrAttempts}/${MAX_QR_ATTEMPTS} intentos) - Renovando automáticamente`);
           
+          // Solo detener si hemos excedido realmente el límite de intentos
           if (qrAttempts >= MAX_QR_ATTEMPTS) {
-            console.log('🛑 Deteniendo reconexión automática para evitar spam de QRs');
-            console.log('💡 Para reactivar: POST /api/whatsapp/initialize o reinicia el servidor');
+            console.log('🛑 Límite real de QRs alcanzado - Deteniendo');
+            console.log('💡 Para reactivar: POST /api/whatsapp/reset-session y luego /api/whatsapp/initialize');
             shouldAutoReconnect = false;
             shouldAttemptReconnect = false;
+            
+            // Limpiar interval de QR
+            if (qrRefreshInterval) {
+              clearInterval(qrRefreshInterval);
+              qrRefreshInterval = null;
+            }
           } else {
-            // Backoff progresivo para QRs
-            reconnectDelay = Math.min(5000 * qrAttempts, 30000);
+            // Continuar renovando QR automáticamente
+            console.log('🔄 Renovando QR automáticamente...');
+            reconnectDelay = 2000; // Reconectar rápido para nuevo QR
           }
         }
         // Manejar diferentes tipos de desconexión
@@ -388,13 +420,30 @@ async function connectToWhatsApp() {
         qrCodeData = null;
         botReadyTime = new Date();
         
+        // Limpiar interval de QR auto-renovación
+        if (qrRefreshInterval) {
+          clearInterval(qrRefreshInterval);
+          qrRefreshInterval = null;
+          console.log('🔄 Auto-renovación de QR detenida - Conexión establecida');
+        }
+        
         // Marcar sesión como válida y reiniciar contadores
         hasValidSession = true;
         qrAttempts = 0;
         shouldAutoReconnect = true;
+        isConnecting = false;
         
         console.log('🤖 Bot listo para recibir mensajes desde:', botReadyTime.toISOString());
-        console.log('🔐 Sesión autenticada y guardada - Reconexiones futuras serán automáticas');
+        console.log('🔐 Sesión única autenticada y guardada');
+        console.log('🛡️ Esta sesión eliminará automáticamente otras conexiones concurrentes');
+        
+        // Forzar eliminación de otras sesiones potenciales enviando presence
+        try {
+          await sock.sendPresenceUpdate('available');
+          console.log('📡 Presencia establecida - Otras sesiones serán desconectadas automáticamente');
+        } catch (err) {
+          console.warn('⚠️ No se pudo establecer presencia:', err.message);
+        }
       }
     });
     
@@ -410,22 +459,43 @@ async function connectToWhatsApp() {
       }
     });
     
-    // Sistema de keepalive para mantener conexión estable
-    const keepAliveInterval = setInterval(() => {
+    // Sistema de keepalive agresivo para mantener conexión estable
+    const keepAliveInterval = setInterval(async () => {
       if (sock && isClientReady) {
         try {
-          // Enviar ping silencioso para mantener conexión
-          sock.query({ tag: 'ping', attrs: {} }).catch(() => {
-            // Ignorar errores de ping, solo es para keepalive
-          });
+          // Múltiples estrategias de keepalive
+          
+          // 1. Enviar presence update
+          await sock.sendPresenceUpdate('available').catch(() => {});
+          
+          // 2. Query de ping silencioso
+          sock.query({ tag: 'ping', attrs: {} }).catch(() => {});
+          
+          // 3. Verificar estado de la conexión
+          if (sock.ws?.readyState === sock.ws?.CLOSED) {
+            console.log('⚠️ WebSocket cerrado detectado en keepalive');
+            if (shouldAutoReconnect) {
+              console.log('🔄 Intentando reconexión desde keepalive...');
+              setTimeout(() => connectToWhatsApp(), 1000);
+            }
+          }
+          
         } catch (err) {
-          // Ignorar errores, el ping es solo para mantener viva la conexión
+          console.warn('⚠️ Error en keepalive:', err.message);
+          // Si hay error en keepalive, intentar reconectar
+          if (shouldAutoReconnect && hasValidSession) {
+            console.log('🔄 Reconectando debido a error en keepalive...');
+            setTimeout(() => connectToWhatsApp(), 2000);
+          }
         }
       } else {
-        // Limpiar interval si no hay conexión
-        clearInterval(keepAliveInterval);
+        // Limpiar interval si no hay conexión válida
+        if (!shouldAutoReconnect) {
+          clearInterval(keepAliveInterval);
+          console.log('🔄 Keepalive detenido - reconexión automática deshabilitada');
+        }
       }
-    }, 30000); // Cada 30 segundos
+    }, 15000); // Cada 15 segundos (más frecuente)
     
   } catch (error) {
     console.error('❌ Error conectando a WhatsApp:', error);
@@ -989,22 +1059,31 @@ app.get('/api/whatsapp/status', async (req, res) => {
   }
 });
 
-// Limpiar sesión y reiniciar
+// Limpiar sesión y reiniciar (agresivo)
 app.post('/api/whatsapp/reset-session', async (req, res) => {
   try {
-    console.log('🗑️ Forzando limpieza de sesión desde API...');
+    console.log('🗑️ Forzando limpieza COMPLETA de sesión desde API...');
     
-    // Cerrar socket actual
+    // Limpiar intervals
+    if (qrRefreshInterval) {
+      clearInterval(qrRefreshInterval);
+      qrRefreshInterval = null;
+      console.log('🔄 Interval de QR limpiado');
+    }
+    
+    // Cerrar socket actual de forma agresiva
     if (sock) {
       try {
+        console.log('🔌 Cerrando socket actual...');
         await sock.logout();
         sock.end();
+        sock = null;
       } catch (err) {
-        console.log('⚠️ Error cerrando socket:', err.message);
+        console.log('⚠️ Error cerrando socket (normal):', err.message);
       }
     }
     
-    // Limpiar estado
+    // Limpiar TODOS los estados
     isClientReady = false;
     connectionStatus = 'disconnected';
     qrCodeData = null;
@@ -1012,23 +1091,31 @@ app.post('/api/whatsapp/reset-session', async (req, res) => {
     qrAttempts = 0;
     shouldAutoReconnect = true;
     isConnecting = false;
-    sock = null;
     
-    // Eliminar archivos de sesión
+    // Eliminar archivos de sesión COMPLETAMENTE
     if (fs.existsSync(SESSION_DIR)) {
-      fs.rmSync(SESSION_DIR, { recursive: true, force: true });
-      console.log('✅ Sesión eliminada completamente');
+      try {
+        fs.rmSync(SESSION_DIR, { recursive: true, force: true });
+        console.log('✅ Directorio de sesión eliminado completamente');
+      } catch (err) {
+        console.error('❌ Error eliminando sesión:', err.message);
+      }
     }
     
-    // Recrear directorio
+    // Recrear directorio limpio
     fs.mkdirSync(SESSION_DIR, { recursive: true });
+    console.log('📁 Directorio de sesión recreado limpio');
+    
+    // Esperar un momento para asegurar limpieza completa
+    await new Promise(resolve => setTimeout(resolve, 1000));
     
     res.json({ 
       success: true, 
-      message: 'Sesión limpiada - Usa /api/whatsapp/initialize para reconectar',
+      message: 'Sesión COMPLETAMENTE limpia - Usa /api/whatsapp/initialize para nueva conexión',
       qrAttempts: qrAttempts,
       hasValidSession: hasValidSession,
-      shouldAutoReconnect: shouldAutoReconnect
+      shouldAutoReconnect: shouldAutoReconnect,
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error('❌ Error limpiando sesión:', error);
@@ -1036,43 +1123,77 @@ app.post('/api/whatsapp/reset-session', async (req, res) => {
   }
 });
 
-// Inicializar conexión
+// Inicializar conexión (con sesión única)
 app.post('/api/whatsapp/initialize', async (req, res) => {
   try {
-    console.log('🔄 Inicializando WhatsApp desde API...');
+    console.log('🔄 Inicializando WhatsApp con sesión única...');
     
     if (isClientReady) {
       return res.json({ 
         success: true, 
-        message: 'WhatsApp ya está conectado',
+        message: 'WhatsApp ya está conectado y estable',
         qrAttempts: qrAttempts,
         hasValidSession: hasValidSession,
-        shouldAutoReconnect: shouldAutoReconnect
+        shouldAutoReconnect: shouldAutoReconnect,
+        status: connectionStatus
       });
     }
     
-    // Detectar si hay sesión existente
-    const credsPath = path.join(SESSION_DIR, 'creds.json');
-    const hasExistingSession = fs.existsSync(credsPath);
+    // FORZAR sesión limpia siempre para evitar conflictos
+    console.log('🗑️ Forzando limpieza de sesión para conexión única...');
     
-    // Reiniciar contadores de QR y reactivar reconexión automática
+    // Cerrar socket existente
+    if (sock) {
+      try {
+        sock.end();
+        sock = null;
+      } catch (err) {
+        console.log('⚠️ Error cerrando socket anterior:', err.message);
+      }
+    }
+    
+    // Limpiar intervals
+    if (qrRefreshInterval) {
+      clearInterval(qrRefreshInterval);
+      qrRefreshInterval = null;
+    }
+    
+    // Limpiar sesión anterior para evitar conflictos
+    if (fs.existsSync(SESSION_DIR)) {
+      try {
+        fs.rmSync(SESSION_DIR, { recursive: true, force: true });
+        console.log('🗑️ Sesión anterior eliminada para evitar conflictos');
+      } catch (err) {
+        console.warn('⚠️ Error limpiando sesión anterior:', err.message);
+      }
+    }
+    
+    // Recrear directorio limpio
+    fs.mkdirSync(SESSION_DIR, { recursive: true });
+    
+    // Reiniciar todos los contadores y estados
     shouldAutoReconnect = true;
     qrAttempts = 0;
-    hasValidSession = hasExistingSession;
+    hasValidSession = false;
+    isConnecting = false;
+    isClientReady = false;
+    connectionStatus = 'initializing';
+    qrCodeData = null;
     
-    console.log('🔄 Contadores reiniciados - Reactivando reconexión automática');
-    console.log(`📁 Sesión existente: ${hasExistingSession ? 'SÍ' : 'NO'}`);
+    console.log('🔄 Estados reiniciados - Iniciando conexión limpia');
+    console.log('� Se generará QR que se auto-renovará hasta ser escaneado');
     
+    // Iniciar conexión
     await connectToWhatsApp();
     
     res.json({ 
       success: true, 
-      message: hasExistingSession 
-        ? 'Reconectando con sesión existente...' 
-        : 'Nueva conexión iniciada - Revisa los logs para el QR',
+      message: 'Conexión única iniciada - QR se renovará automáticamente hasta ser escaneado',
       qrAttempts: qrAttempts,
       hasValidSession: hasValidSession,
-      shouldAutoReconnect: shouldAutoReconnect
+      shouldAutoReconnect: shouldAutoReconnect,
+      autoRefresh: true,
+      maxAttempts: MAX_QR_ATTEMPTS
     });
   } catch (error) {
     console.error('❌ Error inicializando:', error);

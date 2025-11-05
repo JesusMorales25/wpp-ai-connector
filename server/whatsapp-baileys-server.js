@@ -25,6 +25,27 @@ const logger = P({ level: process.env.LOG_LEVEL || 'silent' });
 const isProduction = process.env.NODE_ENV === 'production';
 
 // ================================================
+// SISTEMA DE LOGS OPTIMIZADO
+// ================================================
+const LOG_LEVELS = {
+  ERROR: 0,    // Solo errores críticos
+  WARN: 1,     // Advertencias + errores
+  INFO: 2,     // Información importante + warn + error
+  DEBUG: 3,    // Todo (desarrollo)
+  VERBOSE: 4   // Absolutamente todo
+};
+
+const currentLogLevel = LOG_LEVELS[process.env.APP_LOG_LEVEL] ?? (isProduction ? LOG_LEVELS.INFO : LOG_LEVELS.DEBUG);
+
+const log = {
+  error: (...args) => currentLogLevel >= LOG_LEVELS.ERROR && console.error('❌', ...args),
+  warn: (...args) => currentLogLevel >= LOG_LEVELS.WARN && console.warn('⚠️', ...args),
+  info: (...args) => currentLogLevel >= LOG_LEVELS.INFO && console.log('ℹ️', ...args),
+  debug: (...args) => currentLogLevel >= LOG_LEVELS.DEBUG && console.log('🔍', ...args),
+  verbose: (...args) => currentLogLevel >= LOG_LEVELS.VERBOSE && console.log('📝', ...args)
+};
+
+// ================================================
 // MIDDLEWARE DE SEGURIDAD (igual que antes)
 // ================================================
 
@@ -249,12 +270,15 @@ async function connectToWhatsApp() {
     sock.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect, qr } = update;
       
-      console.log('🔄 Connection update:', { 
-        connection, 
-        hasQR: !!qr,
-        statusCode: lastDisconnect?.error?.output?.statusCode,
-        reason: lastDisconnect?.error?.message 
-      });
+      // Solo loguear cambios importantes (no updates vacíos)
+      if (connection || qr || lastDisconnect) {
+        log.verbose('Connection update:', { 
+          connection, 
+          hasQR: !!qr,
+          statusCode: lastDisconnect?.error?.output?.statusCode,
+          reason: lastDisconnect?.error?.message 
+        });
+      }
       
       // QR Code recibido
       if (qr) {
@@ -589,7 +613,7 @@ async function groupAndProcessMessage(chatId, messageText, originalMessage) {
       timestamp: now
     });
     
-    console.log(`📥 Mensaje agrupado de ${chatId}: "${messageText}" (${group.messages.length}/${BOT_CONFIG.MAX_GROUPED_MESSAGES})`);
+    log.debug(`Mensaje agrupado: "${messageText.substring(0, 30)}..." (${group.messages.length}/${BOT_CONFIG.MAX_GROUPED_MESSAGES})`);
     
     // Limpiar timeout anterior si existe
     if (group.timeout) {
@@ -598,7 +622,7 @@ async function groupAndProcessMessage(chatId, messageText, originalMessage) {
     
     // Si alcanzamos el máximo de mensajes, procesar inmediatamente
     if (group.messages.length >= BOT_CONFIG.MAX_GROUPED_MESSAGES) {
-      console.log(`📊 Máximo de mensajes alcanzado para ${chatId}, procesando inmediatamente`);
+      log.info(`Máximo alcanzado (${BOT_CONFIG.MAX_GROUPED_MESSAGES}), procesando grupo`);
       await processGroupedMessages(chatId);
       return;
     }
@@ -608,7 +632,7 @@ async function groupAndProcessMessage(chatId, messageText, originalMessage) {
       await processGroupedMessages(chatId);
     }, BOT_CONFIG.MESSAGE_GROUPING_DELAY);
     
-    console.log(`⏱️ Timeout configurado para ${chatId} - ${BOT_CONFIG.MESSAGE_GROUPING_DELAY/1000}s para agrupar más mensajes`);
+    log.verbose(`Timeout ${BOT_CONFIG.MESSAGE_GROUPING_DELAY/1000}s configurado`);
     
   } catch (error) {
     console.error('❌ Error agrupando mensaje:', error);
@@ -629,7 +653,7 @@ async function processGroupedMessages(chatId) {
     const lastProcessed = userCooldowns.get(chatId);
     if (lastProcessed && (now - lastProcessed) < BOT_CONFIG.COOLDOWN_MS) {
       const remainingTime = BOT_CONFIG.COOLDOWN_MS - (now - lastProcessed);
-      console.log(`⏳ Usuario ${chatId} en cooldown (${Math.ceil(remainingTime/1000)}s restantes), ignorando ${group.messages.length} mensajes agrupados`);
+      log.debug(`Usuario en cooldown (${Math.ceil(remainingTime/1000)}s), ignorando ${group.messages.length} msgs`);
       messageGroups.delete(chatId);
       if (group.timeout) {
         clearTimeout(group.timeout);
@@ -653,8 +677,8 @@ async function processGroupedMessages(chatId) {
     const messageCount = group.messages.length;
     const timeSpan = Date.now() - group.timestamp;
     
-    console.log(`🔗 Procesando ${messageCount} mensajes agrupados de ${chatId} (${timeSpan}ms span)`);
-    console.log(`📝 Contexto completo: "${contextualMessage.substring(0, 100)}${contextualMessage.length > 100 ? '...' : ''}"`);
+    log.info(`Procesando ${messageCount} mensaje${messageCount > 1 ? 's' : ''} agrupado${messageCount > 1 ? 's' : ''} (${timeSpan}ms)`);
+    log.debug(`Contexto: "${contextualMessage.substring(0, 80)}${contextualMessage.length > 80 ? '...' : ''}"`);
     
     // Procesar mensaje completo con contexto
     await processMessageWithBot(chatId, contextualMessage, group.originalMessage);
@@ -900,8 +924,7 @@ async function sendMessage(phone, message) {
     // Formatear número (agregar @s.whatsapp.net si no lo tiene)
     const jid = cleanPhone.includes('@') ? cleanPhone : `${cleanPhone}@s.whatsapp.net`;
     
-    console.log(`📤 Enviando mensaje a: ${jid}`);
-    console.log(`📝 Mensaje: ${message.substring(0, 50)}...`);
+    log.debug(`Enviando mensaje: "${message.substring(0, 40)}..."`);
     
     // Intentar enviar con reintentos en caso de cierre de conexión
     const maxSendRetries = 2;
@@ -914,13 +937,13 @@ async function sendMessage(phone, message) {
         
         await sock.sendMessage(jid, { text: message });
         botStats.messagesSent++;
-        console.log(`✅ Mensaje enviado exitosamente a ${jid}`);
+        log.info(`✅ Mensaje enviado correctamente`);
         return { success: true, message: 'Mensaje enviado' };
       } catch (err) {
         // Detectar error de conexión cerrada y tratar de reconectar
         const statusCode = err?.output?.statusCode || null;
         const msg = err?.message || '';
-        console.error(`❌ Error enviando mensaje (intento ${attempt + 1}):`, msg);
+        log.error(`Error enviando (intento ${attempt + 1}):`, msg);
 
         // Lista de errores que indican socket desconectado o problemas de estado
         const connectionErrors = [

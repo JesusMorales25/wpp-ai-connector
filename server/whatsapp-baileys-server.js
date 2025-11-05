@@ -199,7 +199,8 @@ async function connectToWhatsApp() {
       console.log('🔄 Connection update:', { 
         connection, 
         hasQR: !!qr,
-        statusCode: lastDisconnect?.error?.output?.statusCode 
+        statusCode: lastDisconnect?.error?.output?.statusCode,
+        reason: lastDisconnect?.error?.message 
       });
       
       // QR Code recibido
@@ -224,24 +225,36 @@ async function connectToWhatsApp() {
         console.log('⚠️ Conexión cerrada, código:', statusCode, 'reconectar:', shouldReconnect);
         console.log('   Razón:', lastDisconnect?.error?.message || 'Desconocida');
         
-        // Si es código 401 (credenciales inválidas), limpiar sesión
-        if (statusCode === 401) {
-          console.log('🗑️ Detectadas credenciales inválidas, limpiando sesión...');
+        // Limpiar estado
+        connectionStatus = 'disconnected';
+        isClientReady = false;
+        qrCodeData = null;
+        
+        // Manejar diferentes tipos de desconexión
+        if (statusCode === DisconnectReason.badSession) {
+          console.log('🗑️ Sesión corrupta detectada, limpiando...');
           if (fs.existsSync(SESSION_DIR)) {
             fs.rmSync(SESSION_DIR, { recursive: true, force: true });
             console.log('✅ Sesión corrupta eliminada');
           }
+        } else if (statusCode === DisconnectReason.connectionClosed) {
+          console.log('🔌 Conexión cerrada por WhatsApp - posible timeout o límite');
+        } else if (statusCode === DisconnectReason.connectionLost) {
+          console.log('📡 Conexión perdida - problema de red');
+        } else if (statusCode === DisconnectReason.connectionReplaced) {
+          console.log('📱 Conexión reemplazada - otro dispositivo se conectó');
+          shouldAutoReconnect = false; // No reconectar automáticamente
+        } else if (statusCode === DisconnectReason.timedOut) {
+          console.log('⏰ Timeout de conexión');
+        } else if (statusCode === DisconnectReason.restartRequired) {
+          console.log('🔄 Reinicio requerido por WhatsApp');
         }
-        
-        connectionStatus = 'disconnected';
-        isClientReady = false;
-        qrCodeData = null;
         
         if (shouldReconnect) {
           console.log('🔄 Reconectando en 3 segundos...');
           setTimeout(() => connectToWhatsApp(), 3000);
         } else {
-          console.log('🔴 Sesión cerrada (logged out) - NO se reconectará automáticamente');
+          console.log('🔴 No se reconectará automáticamente');
           sock = null; // Limpiar socket
         }
       }
@@ -292,9 +305,42 @@ async function handleIncomingMessage(msg) {
     // Extraer información del mensaje
     const messageId = msg.key.id;
     const from = msg.key.remoteJid; // Número del remitente
-    const messageText = msg.message.conversation || 
-                       msg.message.extendedTextMessage?.text || 
-                       '';
+    
+    // Extraer texto del mensaje según el tipo (iPhone, Android, Web, etc.)
+    let messageText = '';
+    
+    if (msg.message.conversation) {
+      // Mensaje normal (iPhone/Android)
+      messageText = msg.message.conversation;
+    } else if (msg.message.extendedTextMessage?.text) {
+      // Mensaje desde WhatsApp Web o con formato extendido
+      messageText = msg.message.extendedTextMessage.text;
+    } else if (msg.message.imageMessage?.caption) {
+      // Imagen con caption
+      messageText = msg.message.imageMessage.caption;
+    } else if (msg.message.documentMessage?.caption) {
+      // Documento con caption
+      messageText = msg.message.documentMessage.caption;
+    } else if (msg.message.videoMessage?.caption) {
+      // Video con caption
+      messageText = msg.message.videoMessage.caption;
+    } else if (msg.message.buttonsResponseMessage?.selectedButtonId) {
+      // Respuesta a botones
+      messageText = msg.message.buttonsResponseMessage.selectedButtonId;
+    } else if (msg.message.listResponseMessage?.singleSelectReply?.selectedRowId) {
+      // Respuesta a lista
+      messageText = msg.message.listResponseMessage.singleSelectReply.selectedRowId;
+    } else {
+      // Tipo de mensaje no soportado para bot IA
+      console.log(`⚠️ Tipo de mensaje no soportado para bot IA:`, Object.keys(msg.message));
+      return;
+    }
+    
+    // Si no hay texto, ignorar
+    if (!messageText.trim()) {
+      console.log(`⚠️ Mensaje sin texto válido de ${from}`);
+      return;
+    }
     
     // Evitar procesar el mismo mensaje dos veces
     if (processedMessages.has(messageId)) {
@@ -332,7 +378,15 @@ async function processMessageWithBot(chatId, messageText, originalMessage) {
     
     // Simular indicador de escritura (typing)
     if (BOT_CONFIG.TYPING_DELAY_MS > 0) {
-      await sock.sendPresenceUpdate('composing', chatId);
+      try {
+        if (!isClientReady || !sock) await ensureConnected(2, 1000);
+        if (sock && typeof sock.sendPresenceUpdate === 'function') {
+          await sock.sendPresenceUpdate('composing', chatId);
+        }
+      } catch (err) {
+        console.warn('⚠️ No se pudo enviar presence update (composing):', err.message || err);
+      }
+
       await new Promise(resolve => setTimeout(resolve, BOT_CONFIG.TYPING_DELAY_MS));
     }
     
@@ -419,16 +473,26 @@ async function processMessageWithBot(chatId, messageText, originalMessage) {
       botReply = 'Lo siento, no pude procesar tu mensaje.';
     }
     
-    // Enviar respuesta
-    await sock.sendMessage(chatId, { text: botReply });
-    
-    botStats.messagesSent++;
-    botStats.autoReplies++;
+    // Enviar respuesta usando sendMessage (maneja reconexión y reintentos)
+    try {
+      await sendMessage(chatId, botReply);
+      botStats.autoReplies++;
+    } catch (sendErr) {
+      console.error('❌ Error enviando respuesta del bot:', sendErr.message || sendErr);
+      throw sendErr;
+    }
     
   // Log crítico ya realizado junto al contenido de la respuesta
     
     // Remover indicador de escritura
-    await sock.sendPresenceUpdate('available', chatId);
+    try {
+      if (!isClientReady || !sock) await ensureConnected(2, 1000);
+      if (sock && typeof sock.sendPresenceUpdate === 'function') {
+        await sock.sendPresenceUpdate('available', chatId);
+      }
+    } catch (err) {
+      console.warn('⚠️ No se pudo enviar presence update (available):', err.message || err);
+    }
     
   } catch (error) {
     console.error('❌ Error procesando mensaje con bot:', error);
@@ -449,12 +513,45 @@ async function processMessageWithBot(chatId, messageText, originalMessage) {
 // FUNCIONES AUXILIARES
 // ================================================
 
+// Espera (sleep)
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Intentar reconectar si el cliente no está listo
+async function ensureConnected(retries = 3, delayMs = 2000) {
+  if (isClientReady && sock) return true;
+
+  console.log('🔎 ensureConnected: socket no listo, intentando reconectar...');
+  for (let i = 0; i < retries; i++) {
+    try {
+      // Intentar conectar de nuevo
+      await connectToWhatsApp();
+
+      if (isClientReady && sock) {
+        console.log('🔌 Reconexión exitosa');
+        return true;
+      }
+    } catch (err) {
+      console.log(`⚠️ Reconexión fallida (intento ${i + 1}/${retries}):`, err.message || err);
+    }
+
+    await wait(delayMs * (i + 1)); // backoff lineal
+  }
+
+  console.log('❌ No fue posible reconectar después de varios intentos');
+  return false;
+}
+
+
 // Enviar mensaje programático
 async function sendMessage(phone, message) {
+  // Asegurarnos de que el socket esté listo antes de intentar enviar
   if (!isClientReady || !sock) {
-    throw new Error('WhatsApp no está conectado');
+    const ok = await ensureConnected(3, 2000);
+    if (!ok) throw new Error('WhatsApp no está conectado');
   }
-  
+
   try {
     // Limpiar y formatear número
     let cleanPhone = String(phone).trim();
@@ -475,12 +572,40 @@ async function sendMessage(phone, message) {
     console.log(`📤 Enviando mensaje a: ${jid}`);
     console.log(`📝 Mensaje: ${message.substring(0, 50)}...`);
     
-    await sock.sendMessage(jid, { text: message });
-    botStats.messagesSent++;
-    
-    console.log(`✅ Mensaje enviado exitosamente a ${jid}`);
-    
-    return { success: true, message: 'Mensaje enviado' };
+    // Intentar enviar con reintentos en caso de cierre de conexión
+    const maxSendRetries = 2;
+    for (let attempt = 0; attempt <= maxSendRetries; attempt++) {
+      try {
+        await sock.sendMessage(jid, { text: message });
+        botStats.messagesSent++;
+        console.log(`✅ Mensaje enviado exitosamente a ${jid}`);
+        return { success: true, message: 'Mensaje enviado' };
+      } catch (err) {
+        // Detectar error de conexión cerrada y tratar de reconectar
+        const statusCode = err?.output?.statusCode || null;
+        const msg = err?.message || '';
+        console.error(`❌ Error enviando mensaje (intento ${attempt + 1}):`, msg);
+
+        if (statusCode === 428 || /Connection Closed/i.test(msg) || /closed/i.test(msg)) {
+          console.log('🔄 Detectado socket cerrado, intentando reconectar antes de reintentar...');
+          isClientReady = false;
+          sock = null;
+          const reok = await ensureConnected(3, 2000);
+          if (!reok) {
+            // Si no se puede reconectar, lanzar el error final
+            throw err;
+          }
+          // conseguir nuevo socket en variable global 'sock' y reintentar
+          continue;
+        } else {
+          // Si no es error de conexión, no reintentamos
+          throw err;
+        }
+      }
+    }
+
+    // Si llegamos aquí, todos los reintentos fallaron
+    throw new Error('No se pudo enviar el mensaje después de varios intentos');
   } catch (error) {
     console.error('❌ Error enviando mensaje:', error);
     botStats.errors++;

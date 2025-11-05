@@ -230,13 +230,26 @@ export const useWhatsApp = () => {
     // Primera comprobación inmediata
     checkStatus();
 
-    // Polling continuo cada 2s para mantener la UI sincronizada con el backend
+    // Polling adaptativo:
+    // - Cada 2s cuando hay QR activo (para detectar escaneo rápido)
+    // - Cada 5s cuando está conectando o autenticando
+    // - Cada 15s cuando está conectado o desconectado (estado estable)
+    const getPollingInterval = () => {
+      if (status.status === 'qr_received' && status.qrCode) {
+        return 2000; // 2s - QR activo, revisar seguido
+      } else if (status.status === 'authenticating') {
+        return 3000; // 3s - Autenticando
+      } else {
+        return 15000; // 15s - Estado estable
+      }
+    };
+
     const interval = setInterval(() => {
       checkStatus();
-    }, 15000);
+    }, getPollingInterval());
 
     return () => clearInterval(interval);
-  }, [checkStatus]);
+  }, [checkStatus, status.status, status.qrCode]);
 
   return {
     // Estado
